@@ -102,11 +102,11 @@ function App() {
         .then(u => {
           setUser(u);
           localStorage.setItem('greetopia_user', JSON.stringify(u));
+          localStorage.setItem('greetopia_remember', 'true');
         })
-        .catch(() => {
-          localStorage.removeItem('greetopia_token');
-          localStorage.removeItem('greetopia_user');
-          setUser(null);
+        .catch(err => {
+          // Keep cached user session! Never wipe login state on cold boot or network hiccups.
+          console.warn('Background session refresh notice:', err);
         });
     }
   }, []);
@@ -114,6 +114,7 @@ function App() {
   const handleAuth = (token: string, authedUser: any) => {
     localStorage.setItem('greetopia_token', token);
     localStorage.setItem('greetopia_user', JSON.stringify(authedUser));
+    localStorage.setItem('greetopia_remember', 'true');
     setUser(authedUser);
     setForceShowSignIn(false);
     load();
@@ -123,6 +124,7 @@ function App() {
     localStorage.removeItem('greetopia_token');
     localStorage.removeItem('greetopia_user');
     localStorage.removeItem('greetopia_guest_mode');
+    localStorage.removeItem('greetopia_remember');
     setUser(null);
     setShowUserDropdown(false);
     setForceShowSignIn(true);

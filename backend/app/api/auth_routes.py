@@ -204,6 +204,19 @@ def me(authorization: Optional[str] = Header(default=None)):
     with db_session() as db:
         _ensure_users_table(db)
         row = db.execute("SELECT * FROM users WHERE id = ?", (int(payload["sub"]),)).fetchone()
+        if not row:
+            email = payload.get("email")
+            if email:
+                row = db.execute("SELECT * FROM users WHERE email = ?", (email.lower(),)).fetchone()
+                if not row:
+                    # Automatically heal user from cryptographically signed JWT if DB was recycled
+                    now = datetime.now(timezone.utc).isoformat()
+                    db.execute(
+                        """INSERT INTO users (id, email, name, avatar_url, provider, created_at, last_login)
+                           VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                        (int(payload["sub"]), email.lower(), payload.get("name", "User"), "", "session", now, now),
+                    )
+                    row = db.execute("SELECT * FROM users WHERE id = ?", (int(payload["sub"]),)).fetchone()
     if not row:
         raise HTTPException(401, "User not found.")
     return _public_user(dict(row))

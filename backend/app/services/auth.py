@@ -18,10 +18,9 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-# ── JWT ────────────────────────────────────────────────────────────────────────
-JWT_SECRET = os.environ.get("JWT_SECRET") or secrets.token_hex(32)
+JWT_SECRET = os.environ.get("JWT_SECRET") or "greetopia-stable-auth-secret-key-355615741600-permanent-v1"
 JWT_ALGORITHM = "HS256"
-JWT_EXPIRE_DAYS = 30
+JWT_EXPIRE_DAYS = 3650  # 10 years / permanent session
 
 GOOGLE_CLIENT_ID = os.environ.get(
     "GOOGLE_CLIENT_ID",
