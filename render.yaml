@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: greetopia-backend
+    runtime: docker
+    plan: starter
+    region: frankfurt
+    dockerContext: ./backend
+    dockerfilePath: ./backend/Dockerfile
+    numInstances: 1
+    healthCheckPath: /health/ready
+    autoDeployTrigger: commit
+    disk:
+      name: greetopia-storage
+      mountPath: /app/storage
+      sizeGB: 1
+    envVars:
+      - key: DATABASE_PATH
+        value: /app/storage/smart_irrigation.db
+      - key: PHOTO_DIR
+        value: /app/storage/photos
+      - key: CORS_ORIGINS
+        value: https://your-greetopia-site.vercel.app,capacitor://localhost,http://localhost
+      - key: MQTT_ENABLED
+        value: "false"
+      - key: AUTO_DECISIONS_ENABLED
+        value: "false"
+      # Keep external AI calls disabled on a public deployment until API auth and rate limits exist.
+      - key: GEMINI_ENABLED
+        value: "false"

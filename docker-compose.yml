@@ -1,0 +1,21 @@
+services:
+  backend:
+    build: ./backend
+    env_file:
+      - path: ./backend/.env
+        required: false
+    environment:
+      DATABASE_PATH: /app/storage/smart_irrigation.db
+      PHOTO_DIR: /app/storage/photos
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./backend/storage:/app/storage
+    restart: unless-stopped
+  frontend:
+    build: ./frontend
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+    restart: unless-stopped

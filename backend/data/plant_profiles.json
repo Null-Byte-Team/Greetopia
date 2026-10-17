@@ -1,0 +1,550 @@
+{
+  "_meta": {
+    "title": "Greetopia Plant Knowledge Base",
+    "version": 2,
+    "record_count": 36,
+    "warning": "Curated starter reference, not a validated agronomic prescription. The local profiles are not a verbatim copy of an external dataset. No species-specific numeric moisture thresholds are asserted. Validate local guidance and sensor calibration before automatic irrigation.",
+    "sources": [
+      {
+        "id": "openplantdb_context",
+        "name": "OpenPlantDB",
+        "url": "https://github.com/cwfrazier1/openplantdb",
+        "license": "CC0-1.0",
+        "use": "External reference for general crop profile structure; its values vary by variety, region and microclimate. Full import is supported by the optional importer."
+      },
+      {
+        "id": "fao_crop_water_context",
+        "name": "FAO AQUASTAT: Crop water requirement",
+        "url": "https://www.fao.org/aquastat/en/data-analysis/irrig-water-use/irrig-water-requirement/",
+        "license": "FAO publication/data terms apply",
+        "use": "Methodological context: crop water requirement depends on crop stage and climate, not species name alone."
+      },
+      {
+        "id": "usda_plants",
+        "name": "USDA PLANTS Database",
+        "url": "https://plants.sc.egov.usda.gov/downloads",
+        "license": "See dataset/source terms",
+        "use": "Taxonomic name verification reference; not used as irrigation thresholds."
+      },
+      {
+        "id": "fao_crop_calendar",
+        "name": "FAO AQUASTAT Irrigated Crop Calendars",
+        "url": "https://www.fao.org/aquastat/en/databases/crop-calendar/",
+        "license": "FAO publication/data terms apply",
+        "use": "Context for crop calendars; availability and reliability vary by country and crop."
+      }
+    ]
+  },
+  "tomato": {
+    "common_name": "Tomato",
+    "aliases": [
+      "tomato",
+      "tomatoes",
+      "طماطم",
+      "البندورة"
+    ],
+    "profile_type": "starter_reference",
+    "care_notes": "Consider growth stage, root-zone moisture trend, drainage, temperature, and forecast conditions together. Avoid treating a single surface reading as proof that the root zone needs water.",
+    "monitoring_notes": "Compare surface, mid-depth, and root-zone readings. Review trend and plant appearance; do not diagnose disease from sensor data alone."
+  },
+  "basil": {
+    "common_name": "Basil",
+    "aliases": [
+      "basil",
+      "sweet basil",
+      "ريحان",
+      "حبق"
+    ],
+    "profile_type": "starter_reference",
+    "care_notes": "Keep moisture reasonably consistent while avoiding waterlogged soil. Interpret readings in the context of pot size, substrate, light, and growth stage.",
+    "monitoring_notes": "Watch for sustained drying or waterlogging trends. Leaf appearance can provide context but is not a definitive diagnosis."
+  },
+  "mint": {
+    "common_name": "Mint",
+    "aliases": [
+      "mint",
+      "spearmint",
+      "نعناع"
+    ],
+    "profile_type": "starter_reference",
+    "care_notes": "Mint generally prefers consistent moisture, but drainage and growing conditions matter. Avoid using a universal moisture percentage across different soil and sensor setups.",
+    "monitoring_notes": "Compare root-zone trends with recent watering and plant appearance."
+  },
+  "lettuce": {
+    "common_name": "Lettuce",
+    "aliases": [
+      "lettuce",
+      "خس"
+    ],
+    "profile_type": "starter_reference",
+    "care_notes": "Interpret moisture alongside growth stage, temperature, light, and substrate. Keep irrigation decisions conservative when sensor readings are stale.",
+    "monitoring_notes": "Use repeated root-zone readings and visual observations rather than one isolated reading."
+  },
+  "cucumber": {
+    "common_name": "Cucumber",
+    "aliases": [
+      "cucumber",
+      "cucumbers",
+      "خيار"
+    ],
+    "profile_type": "starter_reference",
+    "care_notes": "Water demand varies with plant size, fruiting stage, temperature, container or bed, and substrate. Do not infer a fixed schedule from species alone.",
+    "monitoring_notes": "Consider root-zone moisture trends, weather, and growth stage together."
+  },
+  "pepper": {
+    "common_name": "Pepper",
+    "aliases": [
+      "pepper",
+      "bell pepper",
+      "chili",
+      "فلفل"
+    ],
+    "profile_type": "starter_reference",
+    "care_notes": "Care depends on variety and growth stage. Use calibrated sensors and a locally verified moisture target for the actual growing medium.",
+    "monitoring_notes": "Use root-zone readings and trends; avoid diagnosing nutrient or disease issues from moisture sensors alone."
+  },
+  "eggplant": {
+    "common_name": "Eggplant",
+    "aliases": [
+      "eggplant",
+      "aubergine",
+      "باذنجان"
+    ],
+    "profile_type": "curated_starter_reference",
+    "care_notes": "Warm-season crop. Interpret root-zone moisture together with temperature, fruiting stage, drainage, and local growing conditions.",
+    "monitoring_notes": "Use calibrated sensor readings, timestamps, root-zone trends, and recent irrigation records. This note is not a numeric irrigation threshold.",
+    "source_refs": [
+      "openplantdb_context",
+      "fao_crop_water_context"
+    ]
+  },
+  "beans": {
+    "common_name": "Common Bean",
+    "aliases": [
+      "bean",
+      "beans",
+      "common bean",
+      "فاصوليا",
+      "لوبيا"
+    ],
+    "profile_type": "curated_starter_reference",
+    "care_notes": "Water needs vary by bean type and growth stage. Avoid waterlogging and use root-zone trends rather than a fixed schedule.",
+    "monitoring_notes": "Use calibrated sensor readings, timestamps, root-zone trends, and recent irrigation records. This note is not a numeric irrigation threshold.",
+    "source_refs": [
+      "openplantdb_context",
+      "fao_crop_water_context"
+    ]
+  },
+  "spinach": {
+    "common_name": "Spinach",
+    "aliases": [
+      "spinach",
+      "سبانخ"
+    ],
+    "profile_type": "curated_starter_reference",
+    "care_notes": "A cool-season leafy crop. Heat and growth stage affect water demand; assess root-zone moisture and local weather together.",
+    "monitoring_notes": "Use calibrated sensor readings, timestamps, root-zone trends, and recent irrigation records. This note is not a numeric irrigation threshold.",
+    "source_refs": [
+      "openplantdb_context",
+      "fao_crop_water_context"
+    ]
+  },
+  "coriander": {
+    "common_name": "Coriander",
+    "aliases": [
+      "coriander",
+      "cilantro",
+      "كزبرة"
+    ],
+    "profile_type": "curated_starter_reference",
+    "care_notes": "Moisture needs vary with temperature and whether the plant is grown for leaves or seed. Avoid assuming a universal sensor threshold.",
+    "monitoring_notes": "Use calibrated sensor readings, timestamps, root-zone trends, and recent irrigation records. This note is not a numeric irrigation threshold.",
+    "source_refs": [
+      "openplantdb_context",
+      "fao_crop_water_context"
+    ]
+  },
+  "parsley": {
+    "common_name": "Parsley",
+    "aliases": [
+      "parsley",
+      "بقدونس"
+    ],
+    "profile_type": "curated_starter_reference",
+    "care_notes": "Keep an eye on consistent root-zone moisture and drainage. Container size, substrate, and light affect watering frequency.",
+    "monitoring_notes": "Use calibrated sensor readings, timestamps, root-zone trends, and recent irrigation records. This note is not a numeric irrigation threshold.",
+    "source_refs": [
+      "openplantdb_context",
+      "fao_crop_water_context"
+    ]
+  },
+  "rosemary": {
+    "common_name": "Rosemary",
+    "aliases": [
+      "rosemary",
+      "إكليل الجبل",
+      "روزماري"
+    ],
+    "profile_type": "curated_starter_reference",
+    "care_notes": "Usually prefers well-drained media and can be harmed by persistent waterlogging. Confirm soil type before using automatic watering.",
+    "monitoring_notes": "Use calibrated sensor readings, timestamps, root-zone trends, and recent irrigation records. This note is not a numeric irrigation threshold.",
+    "source_refs": [
+      "openplantdb_context",
+      "fao_crop_water_context"
+    ]
+  },
+  "thyme": {
+    "common_name": "Thyme",
+    "aliases": [
+      "thyme",
+      "زعتر"
+    ],
+    "profile_type": "curated_starter_reference",
+    "care_notes": "Often prefers good drainage and tolerates some drying between waterings, but local conditions and growing medium matter.",
+    "monitoring_notes": "Use calibrated sensor readings, timestamps, root-zone trends, and recent irrigation records. This note is not a numeric irrigation threshold.",
+    "source_refs": [
+      "openplantdb_context",
+      "fao_crop_water_context"
+    ]
+  },
+  "oregano": {
+    "common_name": "Oregano",
+    "aliases": [
+      "oregano",
+      "أوريجانو",
+      "مردقوش"
+    ],
+    "profile_type": "curated_starter_reference",
+    "care_notes": "Typically prefers drainage and should not be kept continuously waterlogged. Use a calibrated root-zone sensor.",
+    "monitoring_notes": "Use calibrated sensor readings, timestamps, root-zone trends, and recent irrigation records. This note is not a numeric irrigation threshold.",
+    "source_refs": [
+      "openplantdb_context",
+      "fao_crop_water_context"
+    ]
+  },
+  "strawberry": {
+    "common_name": "Strawberry",
+    "aliases": [
+      "strawberry",
+      "strawberries",
+      "فراولة"
+    ],
+    "profile_type": "curated_starter_reference",
+    "care_notes": "Moisture should be interpreted alongside fruiting stage, weather, container or bed, and drainage.",
+    "monitoring_notes": "Use calibrated sensor readings, timestamps, root-zone trends, and recent irrigation records. This note is not a numeric irrigation threshold.",
+    "source_refs": [
+      "openplantdb_context",
+      "fao_crop_water_context"
+    ]
+  },
+  "carrot": {
+    "common_name": "Carrot",
+    "aliases": [
+      "carrot",
+      "carrots",
+      "جزر"
+    ],
+    "profile_type": "curated_starter_reference",
+    "care_notes": "Root development is affected by soil structure and moisture consistency. Use depth-appropriate readings and avoid waterlogging.",
+    "monitoring_notes": "Use calibrated sensor readings, timestamps, root-zone trends, and recent irrigation records. This note is not a numeric irrigation threshold.",
+    "source_refs": [
+      "openplantdb_context",
+      "fao_crop_water_context"
+    ]
+  },
+  "radish": {
+    "common_name": "Radish",
+    "aliases": [
+      "radish",
+      "فجل"
+    ],
+    "profile_type": "curated_starter_reference",
+    "care_notes": "Fast-growing radishes can respond to uneven moisture; consider growth stage, temperature, and substrate.",
+    "monitoring_notes": "Use calibrated sensor readings, timestamps, root-zone trends, and recent irrigation records. This note is not a numeric irrigation threshold.",
+    "source_refs": [
+      "openplantdb_context",
+      "fao_crop_water_context"
+    ]
+  },
+  "potato": {
+    "common_name": "Potato",
+    "aliases": [
+      "potato",
+      "potatoes",
+      "بطاطس"
+    ],
+    "profile_type": "curated_starter_reference",
+    "care_notes": "Water demand changes by growth stage. Avoid relying on leaf appearance alone or applying a universal soil-moisture percentage.",
+    "monitoring_notes": "Use calibrated sensor readings, timestamps, root-zone trends, and recent irrigation records. This note is not a numeric irrigation threshold.",
+    "source_refs": [
+      "openplantdb_context",
+      "fao_crop_water_context"
+    ]
+  },
+  "onion": {
+    "common_name": "Onion",
+    "aliases": [
+      "onion",
+      "بصل"
+    ],
+    "profile_type": "curated_starter_reference",
+    "care_notes": "Water demand changes during development and bulb formation. Interpret moisture with soil type and growth stage.",
+    "monitoring_notes": "Use calibrated sensor readings, timestamps, root-zone trends, and recent irrigation records. This note is not a numeric irrigation threshold.",
+    "source_refs": [
+      "openplantdb_context",
+      "fao_crop_water_context"
+    ]
+  },
+  "garlic": {
+    "common_name": "Garlic",
+    "aliases": [
+      "garlic",
+      "ثوم"
+    ],
+    "profile_type": "curated_starter_reference",
+    "care_notes": "Water requirements depend on growth stage and soil drainage. Keep records of moisture trends and irrigation events.",
+    "monitoring_notes": "Use calibrated sensor readings, timestamps, root-zone trends, and recent irrigation records. This note is not a numeric irrigation threshold.",
+    "source_refs": [
+      "openplantdb_context",
+      "fao_crop_water_context"
+    ]
+  },
+  "zucchini": {
+    "common_name": "Zucchini",
+    "aliases": [
+      "zucchini",
+      "courgette",
+      "كوسة"
+    ],
+    "profile_type": "curated_starter_reference",
+    "care_notes": "Water demand changes with plant size, flowering, fruiting, and heat. Use root-zone trends and local weather.",
+    "monitoring_notes": "Use calibrated sensor readings, timestamps, root-zone trends, and recent irrigation records. This note is not a numeric irrigation threshold.",
+    "source_refs": [
+      "openplantdb_context",
+      "fao_crop_water_context"
+    ]
+  },
+  "okra": {
+    "common_name": "Okra",
+    "aliases": [
+      "okra",
+      "بامية"
+    ],
+    "profile_type": "curated_starter_reference",
+    "care_notes": "Warm-season crop; water demand varies with temperature, plant size, and fruiting. Confirm targets for the local soil and sensor.",
+    "monitoring_notes": "Use calibrated sensor readings, timestamps, root-zone trends, and recent irrigation records. This note is not a numeric irrigation threshold.",
+    "source_refs": [
+      "openplantdb_context",
+      "fao_crop_water_context"
+    ]
+  },
+  "watermelon": {
+    "common_name": "Watermelon",
+    "aliases": [
+      "watermelon",
+      "بطيخ"
+    ],
+    "profile_type": "curated_starter_reference",
+    "care_notes": "Water demand varies by growth stage and climate. Avoid using image appearance as a soil-moisture measurement.",
+    "monitoring_notes": "Use calibrated sensor readings, timestamps, root-zone trends, and recent irrigation records. This note is not a numeric irrigation threshold.",
+    "source_refs": [
+      "openplantdb_context",
+      "fao_crop_water_context"
+    ]
+  },
+  "melon": {
+    "common_name": "Melon",
+    "aliases": [
+      "melon",
+      "cantaloupe",
+      "شمام",
+      "كنتالوب"
+    ],
+    "profile_type": "curated_starter_reference",
+    "care_notes": "Water needs vary by variety, stage, and weather. Monitor root-zone trends and drainage.",
+    "monitoring_notes": "Use calibrated sensor readings, timestamps, root-zone trends, and recent irrigation records. This note is not a numeric irrigation threshold.",
+    "source_refs": [
+      "openplantdb_context",
+      "fao_crop_water_context"
+    ]
+  },
+  "corn": {
+    "common_name": "Sweet Corn",
+    "aliases": [
+      "corn",
+      "sweet corn",
+      "maize",
+      "ذرة"
+    ],
+    "profile_type": "curated_starter_reference",
+    "care_notes": "Water demand can be sensitive during rapid growth and reproductive stages. Local crop guidance is needed for exact irrigation targets.",
+    "monitoring_notes": "Use calibrated sensor readings, timestamps, root-zone trends, and recent irrigation records. This note is not a numeric irrigation threshold.",
+    "source_refs": [
+      "openplantdb_context",
+      "fao_crop_water_context"
+    ]
+  },
+  "sunflower": {
+    "common_name": "Sunflower",
+    "aliases": [
+      "sunflower",
+      "دوار الشمس"
+    ],
+    "profile_type": "curated_starter_reference",
+    "care_notes": "Water demand depends on growth stage, root depth, and soil. Treat generic profile guidance as a starting point only.",
+    "monitoring_notes": "Use calibrated sensor readings, timestamps, root-zone trends, and recent irrigation records. This note is not a numeric irrigation threshold.",
+    "source_refs": [
+      "openplantdb_context",
+      "fao_crop_water_context"
+    ]
+  },
+  "broccoli": {
+    "common_name": "Broccoli",
+    "aliases": [
+      "broccoli",
+      "بروكلي"
+    ],
+    "profile_type": "curated_starter_reference",
+    "care_notes": "Cool-season crop; temperature and growth stage influence demand. Monitor root-zone moisture and drainage.",
+    "monitoring_notes": "Use calibrated sensor readings, timestamps, root-zone trends, and recent irrigation records. This note is not a numeric irrigation threshold.",
+    "source_refs": [
+      "openplantdb_context",
+      "fao_crop_water_context"
+    ]
+  },
+  "cauliflower": {
+    "common_name": "Cauliflower",
+    "aliases": [
+      "cauliflower",
+      "قرنبيط"
+    ],
+    "profile_type": "curated_starter_reference",
+    "care_notes": "Water needs depend on growth stage and temperature. Avoid overwatering in poorly drained growing media.",
+    "monitoring_notes": "Use calibrated sensor readings, timestamps, root-zone trends, and recent irrigation records. This note is not a numeric irrigation threshold.",
+    "source_refs": [
+      "openplantdb_context",
+      "fao_crop_water_context"
+    ]
+  },
+  "cabbage": {
+    "common_name": "Cabbage",
+    "aliases": [
+      "cabbage",
+      "كرنب",
+      "ملفوف"
+    ],
+    "profile_type": "curated_starter_reference",
+    "care_notes": "Moisture consistency can matter during head development; interpret sensor values in context of substrate and plant stage.",
+    "monitoring_notes": "Use calibrated sensor readings, timestamps, root-zone trends, and recent irrigation records. This note is not a numeric irrigation threshold.",
+    "source_refs": [
+      "openplantdb_context",
+      "fao_crop_water_context"
+    ]
+  },
+  "green_peas": {
+    "common_name": "Pea",
+    "aliases": [
+      "pea",
+      "peas",
+      "green pea",
+      "بسلة"
+    ],
+    "profile_type": "curated_starter_reference",
+    "care_notes": "Water needs depend on season and growth stage. Avoid prolonged waterlogging and review local crop advice.",
+    "monitoring_notes": "Use calibrated sensor readings, timestamps, root-zone trends, and recent irrigation records. This note is not a numeric irrigation threshold.",
+    "source_refs": [
+      "openplantdb_context",
+      "fao_crop_water_context"
+    ]
+  },
+  "jasmine": {
+    "common_name": "Jasmine",
+    "aliases": [
+      "jasmine",
+      "ياسمين"
+    ],
+    "profile_type": "curated_starter_reference",
+    "care_notes": "Care varies by species and growing conditions. Confirm exact species before relying on any species-specific care assumptions.",
+    "monitoring_notes": "Use calibrated sensor readings, timestamps, root-zone trends, and recent irrigation records. This note is not a numeric irrigation threshold.",
+    "source_refs": [
+      "openplantdb_context",
+      "fao_crop_water_context"
+    ]
+  },
+  "rose": {
+    "common_name": "Rose",
+    "aliases": [
+      "rose",
+      "roses",
+      "ورد"
+    ],
+    "profile_type": "curated_starter_reference",
+    "care_notes": "Watering varies by variety, pot or bed, climate, and growth stage. Use root-zone readings and visual observations together.",
+    "monitoring_notes": "Use calibrated sensor readings, timestamps, root-zone trends, and recent irrigation records. This note is not a numeric irrigation threshold.",
+    "source_refs": [
+      "openplantdb_context",
+      "fao_crop_water_context"
+    ]
+  },
+  "marigold": {
+    "common_name": "Marigold",
+    "aliases": [
+      "marigold",
+      "قطيفة"
+    ],
+    "profile_type": "curated_starter_reference",
+    "care_notes": "Water needs vary by container, soil, and weather. Let drainage and repeated readings guide decisions.",
+    "monitoring_notes": "Use calibrated sensor readings, timestamps, root-zone trends, and recent irrigation records. This note is not a numeric irrigation threshold.",
+    "source_refs": [
+      "openplantdb_context",
+      "fao_crop_water_context"
+    ]
+  },
+  "aloe_vera": {
+    "common_name": "Aloe Vera",
+    "aliases": [
+      "aloe vera",
+      "aloe",
+      "صبار الألوفيرا"
+    ],
+    "profile_type": "curated_starter_reference",
+    "care_notes": "Succulent; persistent wet soil can be harmful. Confirm substrate drainage and keep automatic irrigation conservative.",
+    "monitoring_notes": "Use calibrated sensor readings, timestamps, root-zone trends, and recent irrigation records. This note is not a numeric irrigation threshold.",
+    "source_refs": [
+      "openplantdb_context",
+      "fao_crop_water_context"
+    ]
+  },
+  "citrus": {
+    "common_name": "Citrus",
+    "aliases": [
+      "citrus",
+      "lemon",
+      "orange",
+      "ليمون",
+      "برتقال"
+    ],
+    "profile_type": "curated_starter_reference",
+    "care_notes": "Water demand varies substantially with species, rootstock, container, season, and fruiting. Seek locally appropriate crop guidance.",
+    "monitoring_notes": "Use calibrated sensor readings, timestamps, root-zone trends, and recent irrigation records. This note is not a numeric irrigation threshold.",
+    "source_refs": [
+      "openplantdb_context",
+      "fao_crop_water_context"
+    ]
+  },
+  "grape": {
+    "common_name": "Grape",
+    "aliases": [
+      "grape",
+      "grapes",
+      "عنب"
+    ],
+    "profile_type": "curated_starter_reference",
+    "care_notes": "Water needs depend on vine age, soil, climate, and production goals. Avoid generic fixed watering schedules.",
+    "monitoring_notes": "Use calibrated sensor readings, timestamps, root-zone trends, and recent irrigation records. This note is not a numeric irrigation threshold.",
+    "source_refs": [
+      "openplantdb_context",
+      "fao_crop_water_context"
+    ]
+  }
+}

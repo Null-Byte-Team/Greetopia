@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Smart Irrigation — Software Spec</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#faf8f4;--surface:#ffffff;--text:#1f2318;--muted:#5b6355;--accent:#3f6b3a;--accent2:#8a6a3a;--border:#e3ddd1;--tag:#eef2e8;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#15170f;--surface:#1d2016;--text:#eae6da;--muted:#a3ac96;--accent:#8fbf7f;--accent2:#d3ab77;--border:#333726;--tag:#242a1b;}}
+:root[data-theme="dark"]{--bg:#15170f;--surface:#1d2016;--text:#eae6da;--muted:#a3ac96;--accent:#8fbf7f;--accent2:#d3ab77;--border:#333726;--tag:#242a1b;}
+html{scroll-padding-top:env(safe-area-inset-top,0px);}
+*{box-sizing:border-box;}
+body{margin:0;background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-serif;line-height:1.6;}
+.wrap{max-width:860px;margin:0 auto;padding:44px 22px 90px;}
+h1{font-family:'Fraunces',serif;font-size:2rem;margin:0 0 6px;}
+.subtitle{color:var(--muted);margin-bottom:30px;}
+h2{font-family:'Fraunces',serif;font-size:1.28rem;color:var(--accent);margin:38px 0 12px;border-bottom:1px solid var(--border);padding-bottom:8px;}
+h3{font-size:1rem;margin:18px 0 8px;}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin:10px 0;}
+.tablewrap{overflow-x:auto;}
+table{width:100%;border-collapse:collapse;font-size:0.9rem;margin:10px 0;}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:top;}
+th{color:var(--muted);font-size:0.76rem;text-transform:uppercase;}
+code{background:var(--tag);padding:1px 6px;border-radius:4px;font-size:0.88em;}
+pre{background:var(--tag);border-radius:8px;padding:12px 14px;overflow-x:auto;font-size:0.85rem;}
+.tag{display:inline-block;background:var(--tag);color:var(--accent2);font-size:0.72rem;font-weight:700;padding:2px 9px;border-radius:20px;margin:2px 6px 2px 0;}
+.foot{color:var(--muted);font-size:0.82rem;margin-top:50px;border-top:1px solid var(--border);padding-top:14px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>Smart Irrigation — Software Specification</h1>
+<p class="subtitle">For the developer building the cloud/decision-engine layer. The ESP32 firmware (sensor node + camera node) is already built and flashed; this spec covers everything that runs on the laptop/cloud side.</p>
+
+<h2>1. System Context</h2>
+<p>Two independent ESP32 nodes publish data over WiFi. Nothing downstream talks back to the boards except a single watering command. This spec is the "brain" that sits between them and the user.</p>
+<div class="tablewrap"><table>
+<tr><th>Node</th><th>Protocol</th><th>Sends</th><th>Receives</th></tr>
+<tr><td>Sensor node</td><td>MQTT</td><td>Soil x3 (surface/mid/root), leaf wetness, temp, humidity — every 10s</td><td>"ON" command → triggers pump for up to 15s (hardware safety cutoff, non-negotiable)</td></tr>
+<tr><td>Camera node</td><td>HTTP POST</td><td>JPEG photo — every 30 min (deep-sleep between)</td><td>n/a (one-way)</td></tr>
+</table></div>
+
+<h2>2. MQTT Topics (exact strings from firmware)</h2>
+<div class="tablewrap"><table>
+<tr><th>Topic</th><th>Direction</th><th>Payload</th></tr>
+<tr><td><code>plants/{id}/soil/surface</code></td><td>node → engine</td><td>0-100 integer</td></tr>
+<tr><td><code>plants/{id}/soil/mid</code></td><td>node → engine</td><td>0-100 integer</td></tr>
+<tr><td><code>plants/{id}/soil/root</code></td><td>node → engine</td><td>0-100 integer</td></tr>
+<tr><td><code>plants/{id}/leaf_wetness</code></td><td>node → engine</td><td>0-100 integer</td></tr>
+<tr><td><code>plants/{id}/temp</code></td><td>node → engine</td><td>float, °C</td></tr>
+<tr><td><code>plants/{id}/humidity</code></td><td>node → engine</td><td>float, %</td></tr>
+<tr><td><code>plants/{id}/status</code></td><td>node → engine</td><td>"idle" / "watering"</td></tr>
+<tr><td><code>plants/{id}/water</code></td><td>engine → node</td><td>"ON" (string)</td></tr>
+</table></div>
+<p><code>{id}</code> is the plant's unique ID (e.g. <code>plant01</code>) — must match the <code>PLANT_ID</code> set in both firmware files.</p>
+
+<h2>3. Modules to Build</h2>
+
+<div class="card"><h3>3.1 MQTT listener</h3>
+<p>Subscribes to all <code>plants/+/+</code> topics on the broker. Keeps the latest value per plant per metric in memory/DB. Fires the decision engine on every new reading, or on a timer (e.g. every 60s) — developer's choice, timer is simpler to start with.</p>
+<p><span class="tag">Suggested</span> Python + <code>paho-mqtt</code></p></div>
+
+<div class="card"><h3>3.2 Photo receiver</h3>
+<p>HTTP server exposing <code>POST /upload</code>. Reads <code>X-Plant-Id</code> header, saves the JPEG body to disk (or object storage later) as <code>{plant_id}/{timestamp}.jpg</code>, keeps a pointer to "latest photo per plant."</p>
+<p><span class="tag">Suggested</span> Flask, single route, no auth needed for prototype stage</p></div>
+
+<div class="card"><h3>3.3 Weather check</h3>
+<p>On each decision cycle, call OpenWeatherMap (or similar) for the plant's location. Extract: probability/volume of rain in the next 12-24h. Cache the result for ~1 hour to avoid rate limits — no need to call on every single sensor reading.</p></div>
+
+<div class="card"><h3>3.4 VPD calculation</h3>
+<p>Standard formula using temp + humidity:</p>
+<pre>svp = 0.6108 * exp((17.27 * T) / (T + 237.3))   // T in °C, saturation vapor pressure (kPa)
+vpd = svp * (1 - humidity / 100)                 // kPa</pre>
+<p>Output a simple stress band (e.g. low / moderate / high) from VPD thresholds — exact cutoffs are a tuning decision, start with literature-typical ranges for houseplants and adjust from observed data.</p></div>
+
+<div class="card"><h3>3.5 Vision check</h3>
+<p>Runs only when a new photo arrives (not every cycle). Sends the photo to a vision-capable LLM API with a prompt requesting <b>structured JSON only</b> — not freeform text — e.g.:</p>
+<pre>{"wilting": bool, "discoloration": bool, "spots_or_pests": bool, "confidence": 0-1, "notes": "short string"}</pre>
+<p>Store the raw JSON alongside the photo. This output feeds the decision engine as one more signal, never the sole trigger.</p></div>
+
+<div class="card"><h3>3.6 Decision engine</h3>
+<p>Runs on a fixed interval (e.g. every 10-15 min). Pulls: latest root-zone soil %, surface/mid trend, VPD band, weather forecast, latest vision JSON. Produces a boolean watering decision plus a short reason string (for logging and for the chat layer to reference later). Suggested priority order: safety cutoffs first (never water a flooded sensor reading), then root-zone threshold, then weather override (skip if rain expected), then VPD/vision as secondary flags that can lower the threshold slightly, not override it.</p></div>
+
+<div class="card"><h3>3.7 Command + logging</h3>
+<p>If watering decided: publish <code>"ON"</code> to <code>plants/{id}/water</code>. Either way, write one row per decision cycle to a database: timestamp, all raw readings, weather snapshot, VPD, vision result, decision, reason.</p>
+<p><span class="tag">Suggested</span> SQLite for prototype stage, swappable for Postgres later</p></div>
+
+<div class="card"><h3>3.8 Chat + daily diary</h3>
+<p>Chat: on a user question, pull recent rows from the log DB for that plant, pass them plus the question to an LLM, answer grounded in that data — not open-ended reasoning.</p>
+<p>Diary: once daily (cron/scheduled job), pull the day's rows, prompt the LLM to write a short first-person entry from the plant's "perspective," store it alongside the log.</p></div>
+
+<div class="card"><h3>3.9 "Water saved" counter</h3>
+<p>Maintain a running comparison: estimate what a fixed-schedule baseline (e.g. water X ml every Y hours regardless of conditions) would have used over the same period, versus actual ml delivered (from watering event duration/flow sensor if added later). Surface the delta on the dashboard.</p></div>
+
+<h2>3.10 Plant Species Knowledge Base</h2>
+<div class="card"><p>A small database the user populates with the plants they're actually farming — species name, growth stage, and ideal care ranges (moisture, light, temperature). This is the grounding layer the chatbot and decision engine lean on <b>instead of</b> fully trusting the camera's species guess every time. On camera setup, the vision AI suggests a species match against this list; the user confirms. The chatbot answers "does my tomato need more water" by checking this plant's actual profile, not by re-analyzing the latest photo from scratch.</p>
+<p><span class="tag">Suggested</span> simple table: <code>plants(plant_id, species, growth_stage, ideal_moisture_min, ideal_moisture_max, light_needs, notes)</code> — editable by the user through the control panel below</p></div>
+
+<h2>3.11 Control Panel (manual override)</h2>
+<div class="card"><p>A dashboard section where the user can act directly, not just the AI:</p>
+<ul>
+<li><b>Manual "Water Now" button</b>, with an optional duration slider — publishes <code>ON</code> or <code>ON:&lt;seconds&gt;</code> to <code>plants/{id}/water</code> (the sensor-node firmware now supports the optional duration, capped at its built-in safety limit).</li>
+<li><b>Auto/Manual mode toggle per plant</b> — when set to Manual, the decision engine should skip its automatic watering check for that plant until switched back, so a user's manual choice isn't immediately overridden.</li>
+<li><b>Manage plants</b> — add/edit entries in the species knowledge base above (species, stage, care ranges).</li>
+<li>Every manual action gets logged to the same database as automatic ones, tagged <code>source: manual</code> vs <code>source: auto</code>, so the "water saved" counter and the diary can tell them apart.</li>
+</ul></div>
+
+<h2>4. Suggested Tech Stack</h2>
+<p>Python end to end keeps this simple: <code>paho-mqtt</code> for MQTT, Flask for the photo receiver and any dashboard API, SQLite for storage, <code>requests</code> for the weather API and vision/LLM calls. All modules can run as one process for the prototype, split into services later if needed.</p>
+
+<h2>5. Suggested Build Order</h2>
+<p>1) MQTT listener + logging → 2) Photo receiver → 3) Weather check → 4) VPD calc → 5) Plant species knowledge base (basic CRUD) → 6) Decision engine (soil + weather + VPD + species profile, vision stubbed) → 7) Vision check, wire into decision engine as a secondary signal → 8) Control panel (manual water button, auto/manual toggle, manage plants) → 9) Chat, grounded in both sensor history and species profile → 10) Diary → 11) Water-saved counter.</p>
+
+<h2>6. Firmware Note for This Build</h2>
+<div class="card"><p>Both firmware files are finished and already support everything above — the developer should receive them alongside this spec, not write new firmware from scratch. Two details the developer needs to know when building against them:</p>
+<ul>
+<li>The water command topic now accepts <code>ON</code> (default duration) or <code>ON:&lt;seconds&gt;</code> (custom duration, still capped by the board's own safety limit) — this is what the control panel's duration slider should send.</li>
+<li><code>PLANT_ID</code> is hardcoded per board in the firmware (e.g. <code>"plant01"</code>) and must exactly match the ID used in the species knowledge base and all MQTT/HTTP calls for that plant.</li>
+</ul></div>
+
+<div class="foot">Smart Irrigation & Plant Care System — Software Specification for Development Handoff</div>
+</div>
+</body>
+</html>
