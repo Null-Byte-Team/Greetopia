@@ -3,11 +3,12 @@ import {
   Activity, Droplets, Leaf, Thermometer, Wind, CloudRain, Camera, ShieldCheck,
   CircleAlert, RefreshCw, Send, Sprout, ChevronDown, Zap, Clock3, Settings2,
   Plus, History, CheckCircle2, Download, Smartphone, Apple, X, ExternalLink,
-  Sun, Moon, Languages
+  Sun, Moon, Languages, LogOut
 } from 'lucide-react';
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { api, API_ORIGIN } from './api';
 import { translations, Language, Theme } from './i18n';
+import SignInPage from './SignInPage';
 
 type Plant = {
   plant_id: string;
@@ -81,6 +82,51 @@ function App() {
 
   const toggleTheme = () => setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
   const toggleLang = () => setLang(prev => (prev === 'en' ? 'ar' : 'en'));
+
+  // User Auth State
+  const [user, setUser] = useState<any>(() => {
+    try {
+      const raw = localStorage.getItem('greetopia_user');
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [showUserDropdown, setShowUserDropdown] = useState(false);
+  const [forceShowSignIn, setForceShowSignIn] = useState(false);
+
+  useEffect(() => {
+    const token = localStorage.getItem('greetopia_token');
+    if (token && token !== 'guest-token') {
+      api.authMe()
+        .then(u => {
+          setUser(u);
+          localStorage.setItem('greetopia_user', JSON.stringify(u));
+        })
+        .catch(() => {
+          localStorage.removeItem('greetopia_token');
+          localStorage.removeItem('greetopia_user');
+          setUser(null);
+        });
+    }
+  }, []);
+
+  const handleAuth = (token: string, authedUser: any) => {
+    localStorage.setItem('greetopia_token', token);
+    localStorage.setItem('greetopia_user', JSON.stringify(authedUser));
+    setUser(authedUser);
+    setForceShowSignIn(false);
+    load();
+  };
+
+  const handleSignOut = () => {
+    localStorage.removeItem('greetopia_token');
+    localStorage.removeItem('greetopia_user');
+    localStorage.removeItem('greetopia_guest_mode');
+    setUser(null);
+    setShowUserDropdown(false);
+    setForceShowSignIn(true);
+  };
 
   // Core App State
   const [showDownloads, setShowDownloads] = useState(false);
@@ -346,6 +392,24 @@ function App() {
     ? new Date(metric('soil_root').received_at).toLocaleString(lang === 'ar' ? 'ar-EG' : [])
     : t.no_telemetry_received;
 
+  if (forceShowSignIn || (!user && !localStorage.getItem('greetopia_guest_mode'))) {
+    return (
+      <SignInPage
+        t={t}
+        theme={theme}
+        lang={lang}
+        onAuth={handleAuth}
+        toggleTheme={toggleTheme}
+        toggleLang={toggleLang}
+        onContinueAsGuest={() => {
+          localStorage.setItem('greetopia_guest_mode', 'true');
+          setUser({ id: 0, name: lang === 'ar' ? 'زائر' : 'Guest', email: '', provider: 'guest' });
+          setForceShowSignIn(false);
+        }}
+      />
+    );
+  }
+
   return (
     <div className="app-shell">
       {/* Sidebar Navigation */}
@@ -441,7 +505,46 @@ function App() {
               <RefreshCw size={17} />
             </button>
 
-            <div className="avatar">M</div>
+            {user && user.provider !== 'guest' ? (
+              <div style={{ position: 'relative' }}>
+                <button
+                  className="user-avatar-btn"
+                  onClick={() => setShowUserDropdown(!showUserDropdown)}
+                  aria-label="User profile"
+                  type="button"
+                >
+                  {user.avatar_url ? (
+                    <img className="user-avatar-img" src={user.avatar_url} alt={user.name || 'User'} />
+                  ) : (
+                    <div className="user-avatar-fallback">
+                      {user.name ? user.name[0].toUpperCase() : 'U'}
+                    </div>
+                  )}
+                  <span className="user-avatar-name">{user.name || 'User'}</span>
+                  <ChevronDown size={13} style={{ opacity: 0.6 }} />
+                </button>
+                {showUserDropdown && (
+                  <div className="user-dropdown">
+                    <div className="user-dropdown-header">
+                      <strong>{user.name || 'User'}</strong>
+                      <small>{user.email}</small>
+                    </div>
+                    <button className="user-dropdown-item danger" type="button" onClick={handleSignOut}>
+                      <LogOut size={14} /> {t.sign_out}
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <button
+                className="primary-btn"
+                style={{ height: 35, padding: '0 12px', fontSize: 11 }}
+                type="button"
+                onClick={() => setForceShowSignIn(true)}
+              >
+                {t.btn_signin}
+              </button>
+            )}
           </div>
         </header>
 

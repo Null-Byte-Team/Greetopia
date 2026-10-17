@@ -2,6 +2,25 @@ export type Language = 'en' | 'ar';
 export type Theme = 'light' | 'dark';
 
 export interface Translations {
+  // Auth
+  signin_heading: string;
+  signin_sub: string;
+  signup_heading: string;
+  signup_sub: string;
+  name_label: string;
+  email_label: string;
+  password_label: string;
+  btn_signin: string;
+  btn_signup: string;
+  btn_google: string;
+  switch_to_signup: string;
+  switch_to_signin: string;
+  signing_in: string;
+  auth_error_generic: string;
+  sign_out: string;
+  welcome_back: string;
+  signed_in_as: string;
+
   brand_name: string;
   brand_sub: string;
   workspace: string;
@@ -177,6 +196,25 @@ export interface Translations {
 
 export const translations: Record<Language, Translations> = {
   en: {
+    // Auth
+    signin_heading: 'Welcome back',
+    signin_sub: 'Sign in to access your plant dashboard',
+    signup_heading: 'Create your account',
+    signup_sub: 'Start monitoring your plants with AI-powered insights',
+    name_label: 'Full name',
+    email_label: 'Email address',
+    password_label: 'Password',
+    btn_signin: 'Sign in',
+    btn_signup: 'Create account',
+    btn_google: 'Continue with Google',
+    switch_to_signup: "Don't have an account? Sign up",
+    switch_to_signin: 'Already have an account? Sign in',
+    signing_in: 'Signing in…',
+    auth_error_generic: 'Something went wrong. Please try again.',
+    sign_out: 'Sign out',
+    welcome_back: 'Welcome back',
+    signed_in_as: 'Signed in as',
+
     brand_name: 'Greetopia',
     brand_sub: 'PLANT INTELLIGENCE',
     workspace: 'WORKSPACE',
@@ -350,6 +388,25 @@ export const translations: Record<Language, Translations> = {
     plant_profile_created: 'Plant profile created.',
   },
   ar: {
+    // Auth
+    signin_heading: 'مرحباً بعودتك',
+    signin_sub: 'سجّل دخولك للوصول إلى لوحة مراقبة نباتاتك',
+    signup_heading: 'إنشاء حسابك',
+    signup_sub: 'ابدأ بمراقبة نباتاتك بتقنية الذكاء الاصطناعي',
+    name_label: 'الاسم الكامل',
+    email_label: 'البريد الإلكتروني',
+    password_label: 'كلمة المرور',
+    btn_signin: 'تسجيل الدخول',
+    btn_signup: 'إنشاء حساب',
+    btn_google: 'المتابعة عبر Google',
+    switch_to_signup: 'ليس لديك حساب؟ أنشئ حساباً',
+    switch_to_signin: 'لديك حساب بالفعل؟ سجّل الدخول',
+    signing_in: 'جارٍ تسجيل الدخول...',
+    auth_error_generic: 'حدث خطأ ما، يرجى المحاولة مرة أخرى.',
+    sign_out: 'تسجيل الخروج',
+    welcome_back: 'مرحباً بعودتك',
+    signed_in_as: 'مسجّل دخولك بـ',
+
     brand_name: 'جريتوبيا',
     brand_sub: 'ذكاء رعاية النباتات',
     workspace: 'مساحة العمل',

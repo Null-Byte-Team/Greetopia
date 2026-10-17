@@ -15,6 +15,7 @@ from fastapi.staticfiles import StaticFiles
 from app.core.config import settings, is_serverless
 from app.db.database import init_db
 from app.api.routes import router, upload_photo
+from app.api.auth_routes import auth_router
 from app.services.mqtt_service import start_mqtt, stop_mqtt, mqtt_status
 from app.db.database import db_session
 from app.services.decision_engine import evaluate_plant
@@ -58,6 +59,7 @@ async def lifespan(app: FastAPI):
 app=FastAPI(title=settings.app_name,version='0.1.0',description='Prototype API for ESP32 smart irrigation.',lifespan=lifespan)
 app.add_middleware(CORSMiddleware,allow_origins=settings.cors_list,allow_credentials=False,allow_methods=['GET','POST','PATCH','OPTIONS'],allow_headers=['*'])
 app.include_router(router,prefix=settings.api_prefix)
+app.include_router(auth_router,prefix=settings.api_prefix)
 # Backwards-compatible root path required by the original ESP32-CAM firmware.
 app.add_api_route('/upload', upload_photo, methods=['POST'], status_code=201, include_in_schema=False)
 @app.get('/')

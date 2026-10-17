@@ -49,9 +49,31 @@ function resolveApiBase(): string {
 
 const API = resolveApiBase();
 export const API_ORIGIN = API.startsWith('http') ? API.replace(/\/api\/v1\/?$/, '') : '';
-async function request<T>(path:string, init?:RequestInit):Promise<T>{const r=await fetch(`${API}${path}`,{...init,headers:{'Content-Type':'application/json','X-Greetopia-Platform':Capacitor.isNativePlatform()?Capacitor.getPlatform():'web',...(init?.headers||{})}});if(!r.ok){const body=await r.json().catch(()=>({detail:r.statusText}));throw new Error(body.detail||'Request failed');}return r.json();}
+async function request<T>(path:string, init?:RequestInit):Promise<T>{
+  const token = typeof localStorage !== 'undefined' ? localStorage.getItem('greetopia_token') : null;
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'X-Greetopia-Platform': Capacitor.isNativePlatform() ? Capacitor.getPlatform() : 'web',
+  };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  if (init?.headers) {
+    Object.assign(headers, init.headers);
+  }
+  const r = await fetch(`${API}${path}`, {
+    ...init,
+    headers,
+  });
+  if(!r.ok){
+    const body=await r.json().catch(()=>({detail:r.statusText}));
+    throw new Error(body.detail||'Request failed');
+  }
+  return r.json();
+}
 export const api={
  health:()=>request<any>('/health'),
+ authMe:()=>request<any>('/auth/me'),
  plants:()=>request<any[]>('/plants'),
  plantKnowledge:(q:string)=>request<any>(`/plant-knowledge?q=${encodeURIComponent(q)}&limit=8`),
  overview:(id:string)=>request<any>(`/plants/${id}/overview`),

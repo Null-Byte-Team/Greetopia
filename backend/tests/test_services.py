@@ -112,3 +112,57 @@ def test_http_telemetry_ingestion():
     readings = latest_readings('plant01')
     assert readings['soil_root']['value'] == 32.0
     assert readings['temperature_c']['value'] == 24.2
+
+
+def test_auth_flow_signup_signin_me():
+    from app.main import app
+    from fastapi.testclient import TestClient
+    client = TestClient(app)
+
+    # 1. Sign up new user
+    signup_resp = client.post('/api/v1/auth/signup', json={
+        'name': 'Test Botanist',
+        'email': 'botanist@example.com',
+        'password': 'SecurePassword123!',
+    })
+    assert signup_resp.status_code == 201
+    auth_data = signup_resp.json()
+    assert 'token' in auth_data
+    assert auth_data['user']['email'] == 'botanist@example.com'
+    assert auth_data['user']['name'] == 'Test Botanist'
+    token = auth_data['token']
+
+    # 2. Duplicate email should be rejected with 400
+    dup_resp = client.post('/api/v1/auth/signup', json={
+        'name': 'Another Person',
+        'email': 'botanist@example.com',
+        'password': 'AnotherPassword123!',
+    })
+    assert dup_resp.status_code == 400
+
+    # 3. Sign in with valid credentials
+    signin_resp = client.post('/api/v1/auth/signin', json={
+        'email': 'botanist@example.com',
+        'password': 'SecurePassword123!',
+    })
+    assert signin_resp.status_code == 200
+    assert 'token' in signin_resp.json()
+
+    # 4. Sign in with invalid password
+    bad_signin = client.post('/api/v1/auth/signin', json={
+        'email': 'botanist@example.com',
+        'password': 'WrongPassword123!',
+    })
+    assert bad_signin.status_code == 401
+
+    # 5. Access /me with token
+    me_resp = client.get('/api/v1/auth/me', headers={'Authorization': f'Bearer {token}'})
+    assert me_resp.status_code == 200
+    me_data = me_resp.json()
+    assert me_data['email'] == 'botanist@example.com'
+    assert me_data['name'] == 'Test Botanist'
+
+    # 6. Access /me without token should return 401
+    no_token_resp = client.get('/api/v1/auth/me')
+    assert no_token_resp.status_code == 401
+
