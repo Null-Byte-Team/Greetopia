@@ -50,32 +50,47 @@ def _gemini_request(parts: list[dict[str, Any]], system_instruction: str, temper
     selected_key = (api_key or settings.gemini_api_key or '').strip()
     if not selected_key:
         raise RuntimeError('Gemini API key is not configured. Add the appropriate GEMINI_*_API_KEY to backend/.env and restart the backend.')
-    url = f'https://generativelanguage.googleapis.com/v1beta/models/{settings.gemini_model}:generateContent'
     payload = {
         'systemInstruction': {'parts': [{'text': system_instruction}]},
         'contents': [{'role': 'user', 'parts': parts}],
         'generationConfig': {'temperature': temperature, 'maxOutputTokens': 900}
     }
-    try:
-        response = httpx.post(url, headers={'x-goog-api-key': selected_key}, json=payload, timeout=45)
-        if response.status_code >= 400:
-            detail = 'Gemini request failed'
-            try:
-                detail = response.json().get('error', {}).get('message', detail)
-            except Exception:
-                pass
-            raise RuntimeError(f'Gemini API error ({response.status_code}): {detail}')
-        data = response.json()
-        candidates = data.get('candidates') or []
-        parts_out = (candidates[0].get('content') or {}).get('parts') or []
-        answer = '\n'.join(p.get('text', '') for p in parts_out if p.get('text'))
-        if not answer.strip():
-            raise RuntimeError('Gemini returned an empty response. Check API quota and model availability.')
-        return answer.strip()
-    except httpx.TimeoutException as exc:
-        raise RuntimeError('Gemini request timed out. Check internet connection and try again.') from exc
-    except httpx.HTTPError as exc:
-        raise RuntimeError('Could not connect to Gemini. Check the backend internet connection.') from exc
+    # Candidate models in preference order; automatically fallback if a model is deprecated (404)
+    model_candidates = [settings.gemini_model]
+    for m in ['gemini-3.8-flash', 'gemini-2.5-flash', 'gemini-1.5-flash']:
+        if m not in model_candidates:
+            model_candidates.append(m)
+
+    last_error = None
+    for model in model_candidates:
+        url = f'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent'
+        try:
+            response = httpx.post(url, headers={'x-goog-api-key': selected_key}, json=payload, timeout=45)
+            if response.status_code == 404 and model != model_candidates[-1]:
+                log.warning('Gemini model %s returned 404; trying fallback', model)
+                continue
+            if response.status_code >= 400:
+                detail = 'Gemini request failed'
+                try:
+                    detail = response.json().get('error', {}).get('message', detail)
+                except Exception:
+                    pass
+                raise RuntimeError(f'Gemini API error ({response.status_code}): {detail}')
+            data = response.json()
+            candidates = data.get('candidates') or []
+            parts_out = (candidates[0].get('content') or {}).get('parts') or []
+            answer = '\n'.join(p.get('text', '') for p in parts_out if p.get('text'))
+            if not answer.strip():
+                raise RuntimeError('Gemini returned an empty response. Check API quota and model availability.')
+            return answer.strip()
+        except httpx.TimeoutException as exc:
+            raise RuntimeError('Gemini request timed out. Check internet connection and try again.') from exc
+        except httpx.HTTPError as exc:
+            last_error = exc
+
+    if last_error:
+        raise RuntimeError(f'Could not connect to Gemini: {last_error}') from last_error
+    raise RuntimeError('Gemini API returned 404 for all candidate models.')
 
 
 def plant_context(plant_id: str) -> dict[str, Any]:

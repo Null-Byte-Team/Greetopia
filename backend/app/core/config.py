@@ -40,7 +40,7 @@ class Settings(BaseSettings):
     gemini_chat_api_key: str = ''
     gemini_android_api_key: str = ''
     gemini_ios_api_key: str = ''
-    gemini_model: str = 'gemini-2.5-flash'
+    gemini_model: str = 'gemini-3.8-flash'
     gemini_enabled: bool = True
     auto_vision_analysis: bool = False
     device_upload_token: str = ''
