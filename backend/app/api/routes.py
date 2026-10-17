@@ -9,7 +9,7 @@ from app.schemas import PlantCreate, PlantUpdate, ModeUpdate, WaterRequest, Chat
 from app.services.telemetry import latest_readings, history, record_reading
 from app.services.photos import save_photo, latest_photo
 from app.services.decision_engine import evaluate_plant
-from app.services.mqtt_service import publish_water
+from app.services.mqtt_service import publish_water, mqtt_status
 from app.services.weather import get_weather
 from app.services.vpd import calculate_vpd, vpd_band
 from app.services.analytics import dashboard_summary
@@ -28,6 +28,7 @@ def health():
     from app.services.gemini import load_profiles
     profiles = load_profiles()
     return {'status':'ok','service':settings.app_name,'mqtt_enabled':settings.mqtt_enabled,
+            'mqtt': mqtt_status(),
             'gemini_enabled':settings.gemini_enabled, 'gemini_configured':bool((settings.gemini_chat_api_key or settings.gemini_android_api_key or settings.gemini_ios_api_key or settings.gemini_api_key).strip()),
             'auto_vision_analysis':settings.auto_vision_analysis, 'auto_decisions_enabled':settings.auto_decisions_enabled,
             'plant_profiles_count':sum(1 for k,v in profiles.items() if not k.startswith('_') and isinstance(v,dict))}
