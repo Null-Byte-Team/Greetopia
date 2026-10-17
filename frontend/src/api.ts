@@ -1,6 +1,54 @@
 import { Capacitor } from '@capacitor/core';
-const API = import.meta.env.VITE_API_BASE || `http://${window.location.hostname}:5000/api/v1`;
-export const API_ORIGIN = API.replace(/\/api\/v1\/?$/, '');
+
+// Check for runtime service binding injected by Vercel (if running in serverless/Node functions).
+const boundBackendUrl =
+  typeof process !== 'undefined' && process.env?.BACKEND_URL
+    ? `${process.env.BACKEND_URL.replace(/\/+$/, '')}/api/v1`
+    : '';
+
+// Reconcile with public paths and deployment environments:
+// - Explicit env override: VITE_API_BASE
+// - Service binding if available: boundBackendUrl
+// - Mobile Capacitor native platform default: http://localhost:5000/api/v1
+// - Standalone Vite dev server default (port 5173): http://${window.location.hostname}:5000/api/v1
+// - Vercel multi-service routing default: /api/v1 (routes to backend service via Vercel rewrites)
+function resolveApiBase(): string {
+  const envBase = import.meta.env.VITE_API_BASE;
+  if (envBase) {
+    // If the page is on HTTPS, upgrade remote http:// URLs to https:// to prevent Mixed Content blocking
+    if (
+      typeof window !== 'undefined' &&
+      window.location.protocol === 'https:' &&
+      envBase.startsWith('http://') &&
+      !envBase.includes('localhost') &&
+      !envBase.includes('127.0.0.1')
+    ) {
+      return envBase.replace(/^http:\/\//i, 'https://').replace(/\/+$/, '');
+    }
+    return envBase.replace(/\/+$/, '');
+  }
+  if (boundBackendUrl) {
+    return boundBackendUrl;
+  }
+  if (Capacitor.isNativePlatform()) {
+    return 'http://localhost:5000/api/v1';
+  }
+  // Standalone local Vite dev server on HTTP
+  if (
+    typeof window !== 'undefined' &&
+    window.location.protocol === 'http:' &&
+    (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') &&
+    window.location.port === '5173'
+  ) {
+    return `http://${window.location.hostname}:5000/api/v1`;
+  }
+  // On Vercel (or any HTTPS deployment), always use relative /api/v1.
+  // This uses same-origin HTTPS and routes to the backend service via Vercel rewrites.
+  return '/api/v1';
+}
+
+const API = resolveApiBase();
+export const API_ORIGIN = API.startsWith('http') ? API.replace(/\/api\/v1\/?$/, '') : '';
 async function request<T>(path:string, init?:RequestInit):Promise<T>{const r=await fetch(`${API}${path}`,{...init,headers:{'Content-Type':'application/json','X-Greetopia-Platform':Capacitor.isNativePlatform()?Capacitor.getPlatform():'web',...(init?.headers||{})}});if(!r.ok){const body=await r.json().catch(()=>({detail:r.statusText}));throw new Error(body.detail||'Request failed');}return r.json();}
 export const api={
  health:()=>request<any>('/health'),

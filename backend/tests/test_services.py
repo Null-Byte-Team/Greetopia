@@ -74,7 +74,12 @@ def test_irrigation_cooldown_fails_safe():
 
 def test_camera_upload_legacy_route_is_registered():
     from app.main import app
-    paths = {route.path for route in app.routes}
+    paths = {route.path for route in app.routes if hasattr(route, 'path')}
+    for route in app.routes:
+        if hasattr(route, 'original_router'):
+            prefix = getattr(getattr(route, 'include_context', None), 'prefix', '') or ''
+            for sub in route.original_router.routes:
+                paths.add(f"{prefix}{getattr(sub, 'path', '')}")
     assert '/upload' in paths
     assert '/api/v1/upload' in paths
     assert '/api/v1/plant-knowledge' in paths

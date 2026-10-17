@@ -1,14 +1,17 @@
+import os
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pathlib import Path
+
+is_serverless = bool(os.environ.get('VERCEL') or os.environ.get('AWS_LAMBDA_FUNCTION_NAME'))
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file='.env', env_file_encoding='utf-8', extra='ignore', env_ignore_empty=True)
     app_name: str = 'Greetopia API'
     api_prefix: str = '/api/v1'
-    database_path: str = 'storage/smart_irrigation.db'
-    photo_dir: str = 'storage/photos'
+    database_path: str = '/tmp/smart_irrigation.db' if is_serverless else 'storage/smart_irrigation.db'
+    photo_dir: str = '/tmp/photos' if is_serverless else 'storage/photos'
     max_photo_bytes: int = 5_000_000
-    cors_origins: str = 'http://localhost:5173,http://127.0.0.1:5173,http://localhost,capacitor://localhost'
+    cors_origins: str = 'http://localhost:5173,http://127.0.0.1:5173,http://localhost,capacitor://localhost,*'
     mqtt_enabled: bool = False
     mqtt_host: str = '127.0.0.1'
     mqtt_port: int = 1883
@@ -44,5 +47,8 @@ class Settings(BaseSettings):
         return [x.strip() for x in self.cors_origins.split(',') if x.strip()]
 
 settings = Settings()
-Path(settings.database_path).parent.mkdir(parents=True, exist_ok=True)
-Path(settings.photo_dir).mkdir(parents=True, exist_ok=True)
+try:
+    Path(settings.database_path).parent.mkdir(parents=True, exist_ok=True)
+    Path(settings.photo_dir).mkdir(parents=True, exist_ok=True)
+except OSError:
+    pass
