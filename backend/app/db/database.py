@@ -94,8 +94,19 @@ def _seed_knowledge(conn):
 
 def init_db():
     global _initialized
-    _initialized = True
-    conn = sqlite3.connect(settings.database_path, timeout=30, check_same_thread=False)
+    try:
+        Path(settings.database_path).parent.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        settings.database_path = '/tmp/smart_irrigation.db'
+        Path(settings.database_path).parent.mkdir(parents=True, exist_ok=True)
+
+    try:
+        conn = sqlite3.connect(settings.database_path, timeout=30, check_same_thread=False)
+    except sqlite3.OperationalError:
+        settings.database_path = '/tmp/smart_irrigation.db'
+        Path(settings.database_path).parent.mkdir(parents=True, exist_ok=True)
+        conn = sqlite3.connect(settings.database_path, timeout=30, check_same_thread=False)
+
     conn.row_factory = sqlite3.Row
     conn.execute('PRAGMA foreign_keys = ON')
     try:
@@ -109,19 +120,25 @@ def init_db():
             (settings.default_plant_id, 'My Plant', 'Unknown', 'Unknown', datetime.now(timezone.utc).isoformat()))
         conn.commit()
         _seed_knowledge(conn)
+        _initialized = True
     finally:
         conn.close()
 
 
 def ensure_db():
     global _initialized
-    if not _initialized:
+    if not _initialized or not Path(settings.database_path).is_file():
         init_db()
 
 
 def connect():
     ensure_db()
-    conn = sqlite3.connect(settings.database_path, timeout=30, check_same_thread=False)
+    try:
+        conn = sqlite3.connect(settings.database_path, timeout=30, check_same_thread=False)
+    except sqlite3.OperationalError:
+        settings.database_path = '/tmp/smart_irrigation.db'
+        init_db()
+        conn = sqlite3.connect(settings.database_path, timeout=30, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute('PRAGMA foreign_keys = ON')
     conn.execute('PRAGMA busy_timeout = 30000')

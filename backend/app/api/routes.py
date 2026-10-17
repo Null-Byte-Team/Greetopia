@@ -32,6 +32,30 @@ def health():
             'auto_vision_analysis':settings.auto_vision_analysis, 'auto_decisions_enabled':settings.auto_decisions_enabled,
             'plant_profiles_count':sum(1 for k,v in profiles.items() if not k.startswith('_') and isinstance(v,dict))}
 
+@router.get('/debug')
+def debug():
+    import traceback, sys, os as _os
+    from app.core.config import is_serverless
+    db_ok = False; db_error = None
+    plants_count = None
+    try:
+        with db_session() as db:
+            row = db.execute('SELECT COUNT(*) as c FROM plants').fetchone()
+            plants_count = row['c']
+        db_ok = True
+    except Exception:
+        db_error = traceback.format_exc()
+    return {
+        'status': 'ok' if db_ok else 'error',
+        'is_serverless': is_serverless,
+        'database_path': settings.database_path,
+        'database_ok': db_ok,
+        'database_error': db_error,
+        'plants_count': plants_count,
+        'env_indicators': [k for k in _os.environ.keys() if 'VERCEL' in k or 'AWS' in k or 'LAMBDA' in k],
+        'python': sys.version,
+    }
+
 @router.get('/plants')
 def list_plants():
     with db_session() as db: rows=db.execute('SELECT * FROM plants ORDER BY created_at').fetchall()

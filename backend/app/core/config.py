@@ -2,7 +2,14 @@ import os
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pathlib import Path
 
-is_serverless = bool(os.environ.get('VERCEL') or os.environ.get('AWS_LAMBDA_FUNCTION_NAME'))
+is_serverless = bool(
+    os.environ.get('VERCEL')
+    or os.environ.get('VERCEL_ENV')
+    or os.environ.get('VERCEL_URL')
+    or os.environ.get('VERCEL_REGION')
+    or os.environ.get('AWS_LAMBDA_FUNCTION_NAME')
+    or os.environ.get('LAMBDA_TASK_ROOT')
+)
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file='.env', env_file_encoding='utf-8', extra='ignore', env_ignore_empty=True)
@@ -47,8 +54,33 @@ class Settings(BaseSettings):
         return [x.strip() for x in self.cors_origins.split(',') if x.strip()]
 
 settings = Settings()
+
+def _ensure_writable_path(preferred: str, fallback: str) -> str:
+    """Return preferred path if its parent is writable, else fallback to /tmp."""
+    try:
+        p = Path(preferred)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        # Probe: can we actually write here?
+        test = p.parent / '.write_test'
+        test.touch()
+        test.unlink()
+        return preferred
+    except OSError:
+        try:
+            Path(fallback).parent.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            pass
+        return fallback
+
+# Resolve paths at startup — fall back to /tmp if the configured location is read-only.
+# This ensures serverless deployments work even when VERCEL env var is not injected.
+settings.database_path = _ensure_writable_path(settings.database_path, '/tmp/smart_irrigation.db')
+settings.photo_dir = _ensure_writable_path(settings.photo_dir, '/tmp/photos')
+
+# Re-evaluate is_serverless based on runtime path resolution
+is_serverless = is_serverless or settings.database_path.startswith('/tmp')
+
 try:
-    Path(settings.database_path).parent.mkdir(parents=True, exist_ok=True)
     Path(settings.photo_dir).mkdir(parents=True, exist_ok=True)
 except OSError:
     pass

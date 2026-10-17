@@ -78,11 +78,11 @@ def health_ready():
         with db_session() as db:
             db.execute('SELECT 1').fetchone()
         database = {'ok': True}
-    except Exception:
+    except Exception as exc:
         logging.getLogger(__name__).exception('Readiness database check failed')
         from fastapi.responses import JSONResponse
         return JSONResponse(status_code=503, content={
-            'status': 'not_ready', 'database': database,
+            'status': 'not_ready', 'database': database, 'error': str(exc),
             'mqtt': mqtt_status(), 'checked_at': datetime.now(timezone.utc).isoformat(),
         })
     mqtt = mqtt_status()
@@ -91,4 +91,41 @@ def health_ready():
         'status': 'ready', 'service': settings.app_name,
         'database': database, 'mqtt': mqtt,
         'checked_at': datetime.now(timezone.utc).isoformat(),
+    }
+
+@app.get('/_debug', include_in_schema=False)
+def debug_info():
+    """Exposes runtime config & DB connectivity for remote diagnostics. Remove before going to production."""
+    import traceback, sys, os as _os
+    from pathlib import Path as P
+    db_path = settings.database_path
+    db_parent = str(P(db_path).parent)
+    db_ok = False; db_error = None
+    plants_count = None
+    try:
+        with db_session() as db:
+            row = db.execute('SELECT COUNT(*) as c FROM plants').fetchone()
+            plants_count = row['c']
+        db_ok = True
+    except Exception:
+        db_error = traceback.format_exc()
+    parent_writable = False
+    try:
+        test = P(db_parent) / '.write_test2'
+        test.touch(); test.unlink()
+        parent_writable = True
+    except Exception:
+        pass
+    return {
+        'is_serverless': is_serverless,
+        'database_path': db_path,
+        'database_parent': db_parent,
+        'database_parent_writable': parent_writable,
+        'database_ok': db_ok,
+        'database_error': db_error,
+        'plants_count': plants_count,
+        'photo_dir': settings.photo_dir,
+        'env_indicators': [k for k in _os.environ.keys() if 'VERCEL' in k or 'AWS' in k or 'LAMBDA' in k],
+        'python': sys.version,
+        'cwd': str(P.cwd()),
     }

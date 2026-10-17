@@ -38,6 +38,12 @@
       }
     },
     {
+      "source": "/_debug",
+      "destination": {
+        "service": "backend"
+      }
+    },
+    {
       "source": "/health/(.*)",
       "destination": {
         "service": "backend"
