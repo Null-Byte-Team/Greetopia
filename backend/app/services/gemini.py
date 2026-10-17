@@ -17,7 +17,12 @@ log = logging.getLogger(__name__)
 def load_profiles() -> dict[str, Any]:
     path = Path(settings.plant_profiles_path)
     if not path.is_absolute():
-        path = Path(__file__).resolve().parents[2] / path
+        base = Path(__file__).resolve().parents[2] / path
+        if not base.is_file():
+            base = Path(__file__).resolve().parents[1] / path
+        if not base.is_file():
+            base = Path(settings.plant_profiles_path)
+        path = base
     try:
         return json.loads(path.read_text(encoding='utf-8'))
     except Exception:

@@ -1,4 +1,5 @@
 import sqlite3, json
+from datetime import datetime, timezone
 from contextlib import contextmanager
 from pathlib import Path
 from app.core.config import settings
@@ -45,7 +46,81 @@ CREATE TABLE IF NOT EXISTS plant_knowledge (
 CREATE INDEX IF NOT EXISTS idx_plant_knowledge_name ON plant_knowledge(common_name);
 """
 
+_initialized = False
+
+def _seed_knowledge(conn):
+    """Seed the local searchable knowledge table from the bundled, offline-first catalog."""
+    try:
+        profiles_path = Path(__file__).resolve().parents[2] / 'data' / 'plant_profiles.json'
+        if not profiles_path.is_file():
+            profiles_path = Path(__file__).resolve().parents[1] / 'data' / 'plant_profiles.json'
+        if not profiles_path.is_file():
+            profiles_path = Path('data/plant_profiles.json')
+        if not profiles_path.is_file():
+            return
+        profiles = json.loads(profiles_path.read_text(encoding='utf-8'))
+        meta = profiles.get('_meta', {})
+        sources = {item.get('id'): item for item in meta.get('sources', [])}
+        now = datetime.now(timezone.utc).isoformat()
+        for slug, profile in profiles.items():
+            if slug.startswith('_') or not isinstance(profile, dict):
+                continue
+            refs = profile.get('source_refs', [])
+            source = sources.get(refs[0], {}) if refs else {}
+            conn.execute(
+                '''INSERT INTO plant_knowledge(slug,common_name,scientific_name,category,aliases_json,data_json,source_name,source_url,license,updated_at)
+                   VALUES(?,?,?,?,?,?,?,?,?,?)
+                   ON CONFLICT(slug) DO UPDATE SET
+                       common_name=excluded.common_name,
+                       aliases_json=excluded.aliases_json,
+                       data_json=excluded.data_json,
+                       updated_at=excluded.updated_at
+                   WHERE plant_knowledge.source_name != 'OpenPlantDB' ''',
+                (slug,
+                 profile.get('common_name', slug.title()),
+                 profile.get('scientific_name', ''),
+                 profile.get('category', 'unknown'),
+                 json.dumps(profile.get('aliases', []), ensure_ascii=False),
+                 json.dumps(profile, ensure_ascii=False),
+                 source.get('name', 'Greetopia curated starter catalog'),
+                 source.get('url', 'local://greetopia/backend/data/plant_profiles.json'),
+                 source.get('license', 'Greetopia-authored starter notes'),
+                 now))
+        conn.commit()
+    except Exception:
+        import logging
+        logging.getLogger(__name__).exception('Could not seed plant knowledge table')
+
+
+def init_db():
+    global _initialized
+    _initialized = True
+    conn = sqlite3.connect(settings.database_path, timeout=30, check_same_thread=False)
+    conn.row_factory = sqlite3.Row
+    conn.execute('PRAGMA foreign_keys = ON')
+    try:
+        conn.executescript(SCHEMA)
+        # Lightweight migration for existing prototype databases.
+        plant_columns = {row['name'] for row in conn.execute('PRAGMA table_info(plants)').fetchall()}
+        if 'species_source' not in plant_columns:
+            conn.execute("ALTER TABLE plants ADD COLUMN species_source TEXT DEFAULT 'unknown'")
+        conn.execute(
+            'INSERT OR IGNORE INTO plants (plant_id,name,species,growth_stage,created_at) VALUES (?,?,?,?,?)',
+            (settings.default_plant_id, 'My Plant', 'Unknown', 'Unknown', datetime.now(timezone.utc).isoformat()))
+        conn.commit()
+        _seed_knowledge(conn)
+    finally:
+        conn.close()
+
+
+def ensure_db():
+    global _initialized
+    if not _initialized:
+        init_db()
+
+
 def connect():
+    ensure_db()
     conn = sqlite3.connect(settings.database_path, timeout=30, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute('PRAGMA foreign_keys = ON')
@@ -63,34 +138,3 @@ def db_session():
         raise
     finally:
         conn.close()
-
-def init_db():
-    with db_session() as db:
-        db.executescript(SCHEMA)
-        # Lightweight migration for existing prototype databases.
-        plant_columns = {row['name'] for row in db.execute('PRAGMA table_info(plants)').fetchall()}
-        if 'species_source' not in plant_columns:
-            db.execute("ALTER TABLE plants ADD COLUMN species_source TEXT DEFAULT 'unknown'")
-        from datetime import datetime, timezone
-        db.execute('INSERT OR IGNORE INTO plants (plant_id,name,species,growth_stage,created_at) VALUES (?,?,?,?,?)',
-                   (settings.default_plant_id, 'My Plant', 'Unknown', 'Unknown', datetime.now(timezone.utc).isoformat()))
-    # Seed the local searchable knowledge table from the bundled, offline-first catalog.
-    try:
-        import json
-        profiles_path = Path(__file__).resolve().parents[2] / 'data' / 'plant_profiles.json'
-        profiles = json.loads(profiles_path.read_text(encoding='utf-8'))
-        meta = profiles.get('_meta', {})
-        sources = {item.get('id'): item for item in meta.get('sources', [])}
-        now = datetime.now(timezone.utc).isoformat()
-        with db_session() as db:
-            for slug, profile in profiles.items():
-                if slug.startswith('_') or not isinstance(profile, dict):
-                    continue
-                refs = profile.get('source_refs', [])
-                source = sources.get(refs[0], {}) if refs else {}
-                db.execute('''INSERT INTO plant_knowledge(slug,common_name,scientific_name,category,aliases_json,data_json,source_name,source_url,license,updated_at)
-                    VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(slug) DO UPDATE SET common_name=excluded.common_name, aliases_json=excluded.aliases_json, data_json=excluded.data_json, updated_at=excluded.updated_at WHERE plant_knowledge.source_name != 'OpenPlantDB' ''',
-                    (slug, profile.get('common_name', slug.title()), profile.get('scientific_name', ''), profile.get('category', 'unknown'), json.dumps(profile.get('aliases', []), ensure_ascii=False), json.dumps(profile, ensure_ascii=False), source.get('name', 'Greetopia curated starter catalog'), source.get('url', 'local://greetopia/backend/data/plant_profiles.json'), source.get('license', 'Greetopia-authored starter notes'), now))
-    except Exception:
-        import logging
-        logging.getLogger(__name__).exception('Could not seed plant knowledge table')
