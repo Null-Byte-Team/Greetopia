@@ -3,6 +3,7 @@ import { Sprout, Mail, Lock, User, AlertCircle, Loader2, ArrowRight, Sun, Moon, 
 import { Translations, Theme, Language } from './i18n';
 
 const GOOGLE_CLIENT_ID =
+  (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID ||
   '355615741600-5tfd5st7gr7ihnl81k78794u853u32qc.apps.googleusercontent.com';
 
 /** Resolve the backend /api/v1 base URL the same way api.ts does. */
