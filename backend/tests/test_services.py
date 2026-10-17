@@ -93,3 +93,22 @@ def test_health_endpoints_report_service_and_mqtt_state():
     assert ready['status'] == 'ready'
     assert ready['database']['ok'] is True
     assert 'connected' in ready['mqtt']
+
+
+def test_http_telemetry_ingestion():
+    from app.main import app
+    from fastapi.testclient import TestClient
+    client = TestClient(app)
+    resp = client.post('/api/v1/plants/plant01/telemetry', json={
+        'soil_surface': 45.5,
+        'soil_root': 32.0,
+        'temperature_c': 24.2,
+        'humidity_pct': 58.0,
+    })
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data['status'] == 'recorded'
+    assert data['count'] == 4
+    readings = latest_readings('plant01')
+    assert readings['soil_root']['value'] == 32.0
+    assert readings['temperature_c']['value'] == 24.2

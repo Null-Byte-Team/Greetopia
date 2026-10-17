@@ -5,8 +5,8 @@ from datetime import datetime, timezone
 import json
 from app.core.config import settings
 from app.db.database import db_session
-from app.schemas import PlantCreate, PlantUpdate, ModeUpdate, WaterRequest, ChatRequest
-from app.services.telemetry import latest_readings, history
+from app.schemas import PlantCreate, PlantUpdate, ModeUpdate, WaterRequest, ChatRequest, TelemetryIngest
+from app.services.telemetry import latest_readings, history, record_reading
 from app.services.photos import save_photo, latest_photo
 from app.services.decision_engine import evaluate_plant
 from app.services.mqtt_service import publish_water
@@ -131,6 +131,26 @@ def readings_history(plant_id: str, metric: str|None=None, limit: int=200):
     get_plant_or_404(plant_id)
     if not 1 <= limit <= 1000: raise HTTPException(422,'limit must be 1..1000')
     return history(plant_id,metric,limit)
+
+@router.post('/plants/{plant_id}/telemetry', status_code=201)
+def ingest_plant_telemetry(
+    plant_id: str,
+    body: TelemetryIngest,
+    x_device_token: str | None = Header(default=None, alias='X-Device-Token')
+):
+    get_plant_or_404(plant_id)
+    if settings.device_upload_token and x_device_token != settings.device_upload_token:
+        raise HTTPException(401, 'Invalid device upload token')
+    recorded = []
+    data = body.model_dump(exclude_unset=True)
+    if not data:
+        raise HTTPException(422, 'No telemetry metrics provided')
+    for metric, val in data.items():
+        if val is not None:
+            topic = f'plants/{plant_id}/{metric}'
+            rec = record_reading(plant_id, metric, val, topic)
+            recorded.append(rec)
+    return {'status': 'recorded', 'plant_id': plant_id, 'count': len(recorded), 'readings': recorded}
 
 @router.get('/plants/{plant_id}/weather')
 def weather(plant_id: str, refresh: bool=False): get_plant_or_404(plant_id); return get_weather(plant_id,force=refresh)

@@ -29,3 +29,12 @@ class WaterRequest(BaseModel):
 
 class ChatRequest(BaseModel):
     question: str = Field(min_length=1, max_length=1200)
+
+class TelemetryIngest(BaseModel):
+    soil_surface: float | None = Field(default=None, ge=0, le=100)
+    soil_mid: float | None = Field(default=None, ge=0, le=100)
+    soil_root: float | None = Field(default=None, ge=0, le=100)
+    temperature_c: float | None = Field(default=None, ge=-40, le=85)
+    humidity_pct: float | None = Field(default=None, ge=0, le=100)
+    leaf_wetness_pct: float | None = Field(default=None, ge=0, le=100)
+    device_status: Literal['idle', 'watering'] | None = None
