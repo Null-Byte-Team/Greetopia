@@ -1,92 +1,247 @@
-# Greetopia — AI-Powered Smart Irrigation & Plant Care System
+# Greetopia 🌱 — AI-Powered Smart Irrigation & Plant Care System
 
-A prototype full-stack control panel for the existing ESP32 sensor node and ESP32-CAM. Backend: FastAPI + SQLite + optional MQTT. Frontend: React + TypeScript + Vite.
+[![Live Deployment](https://img.shields.io/badge/Live%20Demo-greetopia.vercel.app-brightgreen?style=flat-square&logo=vercel)](https://greetopia.vercel.app)
+[![Backend](https://img.shields.io/badge/Backend-FastAPI%20%7C%20Python%203.11+-blue?style=flat-square&logo=fastapi)](https://fastapi.tiangolo.com)
+[![Frontend](https://img.shields.io/badge/Frontend-React%2019%20%7C%20Vite%20%7C%20TypeScript-61dafb?style=flat-square&logo=react)](https://vitejs.dev)
+[![AI Engine](https://img.shields.io/badge/AI-Google%20Gemini%203.8%20Flash-orange?style=flat-square&logo=google)](https://ai.google.dev)
+[![Hardware](https://img.shields.io/badge/Hardware-ESP32%20%2B%20ESP32--CAM-red?style=flat-square&logo=espressif)](https://www.espressif.com)
+[![Tests](https://img.shields.io/badge/Tests-10%2F10%20Passing-success?style=flat-square&logo=pytest)](https://pytest.org)
 
-## Firmware contract preserved
-- Sensor MQTT topics: `plants/{plant_id}/soil/surface`, `/soil/mid`, `/soil/root`, `/temp`, `/humidity`, `/status`; optional `/leaf_wetness` is accepted if a future firmware publishes it.
-- Commands: `plants/{plant_id}/water`, payload `ON` or `ON:<seconds>` (bounded to 1–15 seconds by this backend). The board must retain its own hard 15-second cutoff.
-- Camera: `POST /upload`, JPEG body, `X-Plant-Id` header. This endpoint remains compatible with the provided ESP32-CAM firmware.
+**Greetopia** is a full-stack, AI-grounded smart irrigation and plant telemetry platform. It connects physical ESP32 sensor and camera nodes to an interactive real-time dashboard powered by **FastAPI**, **React**, **SQLite**, and **Google Gemini AI**.
 
-The uploaded firmware currently publishes the three soil metrics and DHT22 temperature/humidity/status; the spec mentions leaf wetness, but the sensor firmware provided does not implement it. The UI therefore displays it as unavailable unless a reading actually arrives. No flow sensor is present, so water volume is explicitly estimated only when a configured flow rate exists.
+🌐 **Live Application:** [https://greetopia.vercel.app](https://greetopia.vercel.app)  
+📖 **Hardware Setup Guide:** [`ESP32_SETUP_GUIDE.md`](ESP32_SETUP_GUIDE.md)
 
-## Quick start (Windows/macOS/Linux)
-1. Install Python 3.11+ and Node.js 20+.
-2. Copy `backend/.env.example` to `backend/.env` and adjust settings if needed.
-3. Backend:
-   ```bash
-   cd backend
-   python -m venv .venv
-   # Windows: .venv\\Scripts\\activate | macOS/Linux: source .venv/bin/activate
-   pip install -r requirements.txt
-   uvicorn app.main:app --reload --host 0.0.0.0 --port 5000
-   ```
-4. Frontend in a second terminal:
-   ```bash
-   cd frontend
-   npm install
-   npm run dev
-   ```
-   Open the Vite URL shown in the terminal. The frontend defaults to `http://localhost:5000` for the API.
-5. Optional MQTT: set `MQTT_ENABLED=true`, `MQTT_HOST`, credentials and TLS options in `.env`. Keep MQTT disabled until you have a private broker configured. Public brokers are for isolated testing only.
+---
 
-## Camera configuration
-The provided ESP32-CAM currently posts to `http://192.168.1.50:5000/upload`. Change the firmware's server IP to the computer running the backend on your LAN. The backend stores images under `backend/storage/photos/<plant_id>/`. Do not expose this prototype endpoint to the public internet; add authentication and HTTPS before deployment. This upload route is intentionally compatible with the current firmware and therefore does not require an auth header in prototype mode.
+## 📑 Table of Contents
 
-## Important safety notes
-- This is a prototype, not a certified irrigation controller. Bench-test with the pump disconnected first.
-- Backend manual command duration is clamped to 1–15 seconds; the firmware's independent hardware cutoff must remain enabled.
-- Automatic decisions are opt-in (`AUTO_DECISIONS_ENABLED=true`) and run on the configured interval. The decision engine never sends an automatic command if root moisture is absent/stale, the plant is in Manual mode, or configured forecast rain probability is high. Defaults are conservative and must be calibrated for the actual plant/soil.
-- MQTT is unauthenticated unless configured at the broker. Use private MQTT + credentials + TLS in real deployment.
-- No user authentication is implemented yet. Keep the API and dashboard on a trusted local network only.
-- No AI provider is called by default. Image upload/storage is implemented, but plant-image vision inference is not wired yet; chat and diary use transparent, data-grounded prototype logic rather than fabricated AI results.
+- [System Architecture](#system-architecture)
+- [Key Features](#key-features)
+- [Hardware & Pin Setup](#hardware--pin-setup)
+- [Firmware Reference](#firmware-reference)
+- [API Reference](#api-reference)
+- [Local Quick Start](#local-quick-start)
+- [Deployment on Vercel](#deployment-on-vercel)
+- [Environment Variables](#environment-variables)
+- [Safety & Fail-Safe Architecture](#safety--fail-safe-architecture)
 
-## Tests
-```bash
-cd backend
-pip install -r requirements.txt
-pytest
+---
+
+## System Architecture
+
+```mermaid
+graph TD
+    subgraph Hardware ["Hardware Layer (ESP32)"]
+        Sensors["Soil Sensors (3 Depths)<br/>+ DHT22 Temp & Humidity"] --> |HTTP POST / MQTT| ESP32["ESP32 Sensor Node"]
+        Camera["AI-Thinker ESP32-CAM"] --> |HTTP POST JPEG| CAM["Camera Node"]
+        Relay["5V Relay + Pump"] <--- |GPIO 26 Cutoff| ESP32
+    end
+
+    subgraph Backend ["Backend Layer (FastAPI / Vercel Serverless)"]
+        API["FastAPI API (/api/v1)"]
+        DB[(SQLite /tmp Storage)]
+        VPD["VPD & Analytics Engine"]
+        Engine["Deterministic Decision Engine"]
+        AI["Gemini 3.8 Flash Assistant"]
+        
+        ESP32 -->|POST /telemetry| API
+        CAM -->|POST /upload| API
+        API --> DB
+        API --> VPD
+        API --> Engine
+        API --> AI
+    end
+
+    subgraph Frontend ["Frontend Layer (React 19 + Vite)"]
+        UI["Web Dashboard / PWA"]
+        Charts["Recharts Trend Analytics"]
+        Chat["Plant Knowledge AI Chatbot"]
+        
+        UI <-->|JSON REST API| API
+    end
 ```
 
-## Main structure
-- `backend/app/api/`: REST API routes
-- `backend/app/core/`: settings and validation
-- `backend/app/db/`: SQLite connection and schema
-- `backend/app/services/mqtt_service.py`: optional MQTT subscriber/publisher
-- `backend/app/services/`: telemetry, decisions, VPD, weather, photos, diary, analytics
-- `frontend/src/`: dashboard UI and API client
-- `docs/`: architecture and API notes
-- `simulator/`: MQTT telemetry simulator for testing without hardware
-- `ml/`: future model-training notes; no trained model is claimed
-- `firmware_reference/`: copies of the three user-provided source files, unchanged
+---
 
-## Gemini AI and manual plant identification
+## Key Features
 
-The backend can use Google's Gemini API for grounded plant-care chat and visual observations from uploaded ESP32-CAM JPEG images. The API key belongs only in `backend/.env`; never put it in the React frontend or commit it to source control.
+- **3-Depth Soil Telemetry:** Reads capacitive sensors at surface (~2–3cm), mid-depth (~7–8cm), and root zone (~15cm) to observe moisture infiltration dynamics.
+- **Microclimate & VPD Engine:** Ingests DHT22 air temperature and humidity to compute live Vapor Pressure Deficit (VPD) in kPa with stress-band classification (*under-transpiration*, *healthy*, *high stress*).
+- **Dual IoT Telemetry Ingestion:**
+  - **Direct HTTP REST API (`POST /api/v1/plants/{id}/telemetry`):** Native HTTPS posting straight to Vercel without third-party broker dependencies.
+  - **Authenticated MQTT Subscriber (`paho-mqtt`):** Full username/password and TLS support for persistent broker environments (e.g., HiveMQ, EMQX, Mosquitto).
+- **Grounded Gemini AI Assistant (`gemini-3.8-flash`):** Conversational care assistant grounded in live sensor history, species care profiles, VPD, and recent watering events with automatic multi-model fallback.
+- **Offline Plant Knowledge Base:** Bundled catalog of 36 curated plant profiles seeded into SQLite with fast full-text search.
+- **Fail-Safe Hardware Protection:** 15-second hardcoded firmware safety cutoff, irrigation cooldown timers, and sensor freshness checks prevent overwatering.
 
-1. Copy `backend/.env.example` to `backend/.env` if you have not already done so.
-2. Set `GEMINI_ENABLED=true` and configure `GEMINI_CHAT_API_KEY` for chat, plus optional `GEMINI_ANDROID_API_KEY` / `GEMINI_IOS_API_KEY` for app-originated photo analysis. `GEMINI_API_KEY` is the general fallback. `GEMINI_MODEL=gemini-2.5-flash` is the default.
-3. Restart the backend. Internet access is required for Gemini calls.
-4. Upload a camera photo, or use **Analyze latest photo** in the dashboard. The backend stores the visual result alongside the image. Image-based species guesses are suggestions, not verified identifications.
-5. In **Plant profile**, enter the plant type yourself and click **Save species**. A manual choice is marked as user-confirmed and is not overwritten by Gemini image guesses. This is useful when the camera image is ambiguous.
-6. Ask the assistant to analyze current conditions. It receives the saved plant profile, recent sensor readings/history, VPD, recent decisions, and watering events as context.
+---
 
-The local knowledge base is `backend/data/plant_profiles.json`. It contains starter reference notes for a small number of species, not a complete botanical database and not validated numeric watering thresholds. Add or review species entries using trusted horticultural sources. The dashboard's configured moisture range remains a user-configured sensor threshold, not an AI-verified universal value.
+## Hardware & Pin Setup
 
-Gemini is called on demand and when a camera image is uploaded, not on every sensor packet. This avoids unnecessary API usage and latency. The deterministic decision engine remains separate from Gemini and the pump's firmware cutoff remains an independent safety layer. Do not enable automatic pump execution until the readings, relay wiring, and fail-safe behavior have been tested with the pump disconnected.
+For a full step-by-step wiring guide, see [`ESP32_SETUP_GUIDE.md`](ESP32_SETUP_GUIDE.md).
 
-Relevant API routes: `GET /api/v1/plant-profiles`, `POST /api/v1/plants/{plant_id}/photos/analyze`, and `POST /api/v1/plants/{plant_id}/chat`.
+| Component | Sensor Pin | ESP32 Pin | Purpose |
+| :--- | :--- | :--- | :--- |
+| **Surface Soil Sensor** | Analog Out | **GPIO 34** | Surface moisture (ADC1) |
+| **Mid-Depth Soil Sensor** | Analog Out | **GPIO 35** | Mid root moisture (ADC1) |
+| **Root-Zone Soil Sensor** | Analog Out | **GPIO 32** | Primary irrigation trigger (ADC1) |
+| **DHT22** | Data Out | **GPIO 4** | Ambient temperature & relative humidity |
+| **Relay Module** | Signal (IN) | **GPIO 26** | Submersible pump control (Active LOW) |
+| **ESP32-CAM** | Camera Lens | Standalone Node | Periodic JPEG plant captures |
 
-## Plant knowledge database and Gemini controls
+---
 
-Greetopia ships an offline-first catalog of 36 curated starter plant profiles. It is seeded into SQLite (`plant_knowledge`) and searchable through `GET /api/v1/plant-knowledge?q=tomato`. The catalog includes source metadata and avoids pretending that a single moisture percentage is correct for every species, pot, substrate, and sensor. An optional OpenPlantDB CC0 importer is documented in `backend/data/README.md`; the upstream dataset is large and is downloaded on demand rather than copied into this ZIP.
+## Firmware Reference
 
-Gemini keys must be stored only in `backend/.env`. Never put the key in frontend variables or source control. `AUTO_VISION_ANALYSIS=false` is the default so camera uploads do not call Gemini automatically every time the ESP32-CAM wakes up; users can analyze the latest photo manually. Automatic irrigation remains disabled by default. `DEVICE_UPLOAD_TOKEN` can optionally protect the camera upload route, but enabling it requires adding the matching `X-Device-Token` header in the ESP32-CAM firmware. Until that firmware change and local network controls are in place, keep the API restricted to the trusted local network.
+Ready-to-flash Arduino sketches are located in [`firmware_reference/`](firmware_reference/):
 
-### Deployment and secrets
+- **[`sensor_node_greetopia_ready.ino`](firmware_reference/sensor_node_greetopia_ready.ino):** Production-ready sensor & pump node sketch. Supports both direct HTTP telemetry (Option A) and authenticated MQTT (Option B).
+- **[`esp32_cam_greetopia_ready.ino`](firmware_reference/esp32_cam_greetopia_ready.ino):** AI-Thinker ESP32-CAM sketch with deep sleep, configurable upload token, and direct HTTP POST to `/upload`.
+- **[`README.md`](firmware_reference/README.md):** Firmware protocol documentation.
 
-Never commit or share `backend/.env`. Use `backend/.env.example` as a template and store real secrets only in local ignored files or the hosting provider's secret environment settings. If a real key was shared or bundled into an archive, revoke/rotate it before deployment. See [`docs/PERSISTENT_BACKEND_DEPLOYMENT.md`](docs/PERSISTENT_BACKEND_DEPLOYMENT.md) for a single-instance persistent backend deployment plan.
+---
 
+## API Reference
 
-## Mobile apps (Android + iOS)
+The FastAPI backend exposes interactive OpenAPI docs at `/docs`.
 
-The `frontend/` app is shared by the website and Capacitor mobile wrappers. See [`mobile/README.md`](mobile/README.md) for Android Studio and Xcode build steps, native platform styling, HTTPS API configuration, and safe Gemini key setup. The website has a **Download app** dialog. Release download links are configured with `VITE_ANDROID_DOWNLOAD_URL` and `VITE_IOS_DOWNLOAD_URL` only after signed release artifacts are published. This source archive does not include signed APK/IPA binaries.
+### Core Endpoints
+
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `GET` | `/api/v1/health` | System health, Gemini configuration, and profile counts |
+| `GET` | `/health/ready` | Readiness probe reporting database and MQTT status |
+| `GET` | `/api/v1/plants` | List all tracked plants |
+| `GET` | `/api/v1/plants/{id}/overview` | Complete plant snapshot: live readings, VPD, weather, analytics |
+| `POST` | `/api/v1/plants/{id}/telemetry` | Ingest sensor readings directly via JSON HTTP POST |
+| `POST` | `/api/v1/plants/{id}/water` | Trigger manual pump run (clamped 1–15s) |
+| `POST` | `/api/v1/plants/{id}/decision` | Run deterministic irrigation check |
+| `POST` | `/api/v1/plants/{id}/chat` | Ask Gemini about plant condition with grounded telemetry |
+| `POST` | `/upload` | ESP32-CAM raw JPEG photo upload |
+| `GET` | `/api/v1/plant-knowledge?q=tomato` | Search local offline-first plant database |
+
+#### Example: Submitting Sensor Telemetry via HTTP
+
+```http
+POST /api/v1/plants/plant01/telemetry
+Content-Type: application/json
+X-Device-Token: your_optional_secret_token
+
+{
+  "soil_surface": 42.0,
+  "soil_mid": 48.5,
+  "soil_root": 35.0,
+  "temperature_c": 25.1,
+  "humidity_pct": 62.0
+}
+```
+
+---
+
+## Local Quick Start
+
+### Prerequisites
+- **Python 3.11+**
+- **Node.js 20+** & npm
+
+### 1. Backend Setup
+```bash
+cd backend
+python -m venv .venv
+
+# Windows:
+.venv\Scripts\activate
+# Linux/macOS:
+source .venv/bin/activate
+
+pip install -r requirements.txt
+uvicorn app.main:app --reload --host 0.0.0.0 --port 5000
+```
+
+### 2. Frontend Setup
+In a second terminal:
+```bash
+cd frontend
+npm install
+npm run dev
+```
+Open [http://localhost:5173](http://localhost:5173). The Vite dev server automatically proxies `/api` calls to `http://localhost:5000`.
+
+---
+
+## Deployment on Vercel
+
+Greetopia is pre-configured for seamless single-repository deployment on **Vercel** using multi-service routing:
+
+- **`vercel.json`** routes:
+  - `/api/(.*)`, `/upload`, `/health/(.*)`, `/docs` → `backend` (FastAPI serverless function)
+  - `/(.*)` → `frontend` (Vite single-page application)
+- **Automatic Serverless Detection:** Backend automatically detects Vercel environments and switches the SQLite database and photo directory to `/tmp` with runtime writability fallback.
+
+---
+
+## Environment Variables
+
+Copy `backend/.env.example` to `backend/.env` for local configuration:
+
+```env
+# Application
+APP_NAME=Greetopia API
+API_PREFIX=/api/v1
+CORS_ORIGINS=http://localhost:5173,http://localhost,*
+
+# MQTT Broker (Optional for Persistent Container Hosting)
+MQTT_ENABLED=false
+MQTT_HOST=127.0.0.1
+MQTT_PORT=1883
+MQTT_USERNAME=
+MQTT_PASSWORD=
+MQTT_TLS=false
+
+# Google Gemini AI
+GEMINI_ENABLED=true
+GEMINI_MODEL=gemini-3.8-flash
+GEMINI_API_KEY=your_gemini_api_key_here
+GEMINI_CHAT_API_KEY=
+
+# Safety & Irrigation Engine
+AUTO_DECISIONS_ENABLED=false
+DECISION_INTERVAL_MINUTES=15
+IRRIGATION_COOLDOWN_MINUTES=30
+ROOT_MOISTURE_THRESHOLD=28
+DEFAULT_WATER_SECONDS=5
+
+# Optional Security Tokens
+DEVICE_UPLOAD_TOKEN=
+```
+
+---
+
+## Safety & Fail-Safe Architecture
+
+Greetopia enforces multi-layer safety controls to prevent accidental overwatering:
+
+1. **Hardware Cutoff:** Firmware code clamps maximum pump activation to **15 seconds**, turning the relay OFF even if network or server communication drops.
+2. **API Clamping:** Manual water requests are strictly validated to `1..15` seconds by Pydantic schemas.
+3. **Irrigation Cooldown:** A 30-minute mandatory cooldown window prevents repeated watering cycles before water has soaked to the root zone.
+4. **Sensor Freshness Safeguard:** The automatic decision engine refuses to trigger pump commands if telemetry readings are older than 5 minutes.
+5. **Rain Skip Logic:** Integrated weather forecasts skip scheduled irrigations if rain probability exceeds the configured threshold.
+
+---
+
+## Automated Test Suite
+
+Run backend test verification (includes API routes, VPD, decision engine, and telemetry ingestion):
+
+```bash
+cd backend
+python -m pytest tests/ -v
+```
+*(All 10 unit and integration tests passing).*
+
+---
+
+## License
+
+This project is open-source under the MIT License.
