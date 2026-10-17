@@ -201,7 +201,7 @@ function App() {
     return () => window.removeEventListener('beforeinstallprompt', handler);
   }, []);
 
-  const androidDownload = import.meta.env.VITE_ANDROID_DOWNLOAD_URL as string | undefined;
+  const androidDownload = (import.meta.env.VITE_ANDROID_DOWNLOAD_URL as string | undefined) || '/downloads/greetopia.apk';
   const iosDownload = import.meta.env.VITE_IOS_DOWNLOAD_URL as string | undefined;
 
   const installPwa = async () => {
@@ -1147,7 +1147,7 @@ function App() {
                   <small>{t.android_sub}</small>
                 </div>
                 {androidDownload ? (
-                  <a className="download-choice" href={androidDownload}>
+                  <a className="download-choice" href={androidDownload} download="Greetopia.apk">
                     <Download size={14} /> APK
                   </a>
                 ) : deferredInstall ? (

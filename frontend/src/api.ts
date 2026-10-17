@@ -31,7 +31,7 @@ function resolveApiBase(): string {
     return boundBackendUrl;
   }
   if (Capacitor.isNativePlatform()) {
-    return 'http://localhost:5000/api/v1';
+    return (import.meta.env.VITE_API_BASE || 'https://greetopia.vercel.app/api/v1').replace(/\/+$/, '');
   }
   // Standalone local Vite dev server on HTTP
   if (
