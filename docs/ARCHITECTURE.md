@@ -1,15 +1,14 @@
 # Architecture
 
-- ESP32 sensor node publishes independent telemetry values to MQTT.
-- Optional MQTT adapter validates topic and payload, then records each reading with server receive time.
-- FastAPI exposes plant profiles, latest readings, history, decisions, manual control, photos, weather, chat, and diary endpoints.
-- SQLite stores plant profiles, readings, decision logs, irrigation requests, photos, weather snapshots, chat, and diary entries.
-- ESP32-CAM posts raw JPEG bytes to `POST /upload` with `X-Plant-Id`. Images are stored on disk; vision analysis is not yet connected.
-- The React dashboard reads the API and shows missing/stale sensor values as unavailable.
-- Automatic decision scheduling is opt-in through `AUTO_DECISIONS_ENABLED=true`; it must remain off until tested with the pump disconnected.
+- **Sensor node (ESP32)** publishes independent values to a **private MQTT broker** (`plants/{id}/soil/{surface|mid|root}`, `temp`, `humidity`, `status`) and, with firmware v2, `availability`, `ack`, `fault`.
+- **MQTT adapter** (`services/mqtt_service.py`): bounded queue + worker thread, strict topic/payload validation, quarantine table for rejected messages, retained telemetry ignored, public brokers refused.
+- **Telemetry** (`services/telemetry.py`): history in `readings` (age-based retention, default 90 days) plus an O(1) `latest_readings` snapshot. Server receive time is used because the firmware sends no timestamps.
+- **Device state** (`services/device_state.py`): online/stale/offline from the last valid message; reconciles commands with the observed `watering`/`idle` status; raises alerts for unconfirmed or unrequested pump activity.
+- **Irrigation controller** (`services/irrigation.py`): the only code path that publishes pump commands (guards: 1-15 s, pending command, cooldown, daily caps).
+- **Decision engine** (`services/decision_engine.py`): pure `decide()` + I/O wrapper. See `docs/DECISION_ENGINE.md`.
+- **Camera**: `POST /upload` (device token) -> Pillow validation -> SHA-256 de-duplication -> files under `PHOTO_DIR/<plant>/`, DB stores a relative key. Optional AI analysis runs off the event loop and records failures on the photo row.
+- **Auth** (`services/auth.py`): JWT (PyJWT), roles stored in the DB, device token for nodes, signed photo URLs.
+- **SQLite** is used on one persistent disk with exactly one backend instance.
+- **React dashboard** polls the API (15 s). It shows missing/stale values as unavailable and never presents "published" as "executed".
 
-## Data integrity choices
-- Server receive timestamps are used because current firmware payloads do not contain timestamps.
-- Soil percentages are validated to 0–100. Temperature and humidity have basic range validation.
-- MQTT commands use `ON:<seconds>` explicitly because plain `ON` activates the firmware's default 15-second duration.
-- Water volume is not reported as measured. It remains unavailable unless a calibrated `FLOW_ML_PER_SECOND` is configured, and even then is an estimate.
+Not implemented (see `docs/NEXT_FEATURES_PROMPT.md`): WebSockets, PostgreSQL/Alembic, ML stress predictor, baseline-vs-adaptive experiments, flow sensor.

@@ -16,3 +16,11 @@ backend/storage/
 frontend/node_modules/
 frontend/dist/
 *.tsbuildinfo
+# secrets / local data
+firmware/**/secrets.h
+deploy/mosquitto/passwd
+*.apk
+frontend/android/app/build/
+frontend/android/.gradle/
+frontend/android/build/
+backend/.venv/

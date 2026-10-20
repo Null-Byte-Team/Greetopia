@@ -6,7 +6,7 @@ import {
   Sun, Moon, Languages, LogOut
 } from 'lucide-react';
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { api, API_ORIGIN } from './api';
+import { api, UNAUTHORIZED_EVENT, apiConfigError, API_ORIGIN } from './api';
 import { translations, Language, Theme } from './i18n';
 import SignInPage from './SignInPage';
 
@@ -96,8 +96,15 @@ function App() {
   const [forceShowSignIn, setForceShowSignIn] = useState(false);
 
   useEffect(() => {
+    const onUnauthorized = () => {
+      localStorage.removeItem('greetopia_token');
+      localStorage.removeItem('greetopia_user');
+      setUser(null);
+      setForceShowSignIn(true);
+    };
+    window.addEventListener(UNAUTHORIZED_EVENT, onUnauthorized);
     const token = localStorage.getItem('greetopia_token');
-    if (token && token !== 'guest-token') {
+    if (token) {
       api.authMe()
         .then(u => {
           setUser(u);
@@ -109,6 +116,7 @@ function App() {
           console.warn('Background session refresh notice:', err);
         });
     }
+    return () => window.removeEventListener(UNAUTHORIZED_EVENT, onUnauthorized);
   }, []);
 
   const handleAuth = (token: string, authedUser: any) => {
@@ -123,7 +131,6 @@ function App() {
   const handleSignOut = () => {
     localStorage.removeItem('greetopia_token');
     localStorage.removeItem('greetopia_user');
-    localStorage.removeItem('greetopia_guest_mode');
     localStorage.removeItem('greetopia_remember');
     setUser(null);
     setShowUserDropdown(false);
@@ -285,7 +292,7 @@ function App() {
     setActionMessage('');
     try {
       const r = await api.water(plantId, seconds);
-      setActionMessage(r.published ? `${t.water_queued} ${seconds}s.` : `${t.water_not_sent}: ${r.message}`);
+      setActionMessage(r.published ? `${t.water_queued} ${seconds}s. ${t.cmd_published_waiting}.` : `${t.water_not_sent}: ${r.message}`);
     } catch (e: any) {
       setActionMessage(e.message);
     } finally {
@@ -390,11 +397,35 @@ function App() {
     }
   };
 
+  const canControl = user?.role === 'operator' || user?.role === 'admin';
+  const device = overview?.device;
+  const deviceLabel = device?.state === 'online' ? t.device_online : device?.state === 'stale' ? t.device_stale : t.device_offline;
+  const lastEvent = overview?.last_event;
+  const candidateSpecies = overview?.photo?.vision?.species_guess || overview?.photo?.vision?.common_name;
+
+  const useSuggestedSpecies = async () => {
+    if (!candidateSpecies) return;
+    setBusy(true);
+    try {
+      await api.updatePlant(plantId, { species: String(candidateSpecies) });
+      setActionMessage(`${t.species_saved_prefix} ${candidateSpecies}.`);
+      await load();
+    } catch (e: any) {
+      setActionMessage(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const lastSeen = metric('soil_root')?.received_at
     ? new Date(metric('soil_root').received_at).toLocaleString(lang === 'ar' ? 'ar-EG' : [])
     : t.no_telemetry_received;
 
-  if (forceShowSignIn || (!user && !localStorage.getItem('greetopia_guest_mode'))) {
+  if (apiConfigError) {
+    return <div role="alert" style={{ padding: 24 }}>{apiConfigError}</div>;
+  }
+
+  if (forceShowSignIn || !user) {
     return (
       <SignInPage
         t={t}
@@ -403,11 +434,6 @@ function App() {
         onAuth={handleAuth}
         toggleTheme={toggleTheme}
         toggleLang={toggleLang}
-        onContinueAsGuest={() => {
-          localStorage.setItem('greetopia_guest_mode', 'true');
-          setUser({ id: 0, name: lang === 'ar' ? 'زائر' : 'Guest', email: '', provider: 'guest' });
-          setForceShowSignIn(false);
-        }}
       />
     );
   }
@@ -604,19 +630,29 @@ function App() {
               <span>
                 <Clock3 size={13} /> {t.last_sensor_update}: {lastSeen}
               </span>
+              <span title={device?.basis || ''}>
+                <CircleAlert size={13} /> {deviceLabel}
+              </span>
+              {lastEvent && (
+                <span>
+                  <Droplets size={13} /> {t.last_command}: {lastEvent.status}{lastEvent.duration_seconds ? ` · ${lastEvent.duration_seconds}s` : ''}
+                </span>
+              )}
             </div>
 
             <div className="hero-actions">
-              <button className="primary-btn" onClick={water} disabled={busy}>
+              <button className="primary-btn" onClick={water} disabled={busy || !canControl}>
                 <Droplets size={16} /> {t.water_now}
               </button>
-              <button className="secondary-btn" onClick={changeMode} disabled={busy}>
+              <button className="secondary-btn" onClick={changeMode} disabled={busy || !canControl}>
                 <Settings2 size={16} /> {selected?.mode === 'auto' ? t.switch_to_manual : t.switch_to_auto}
               </button>
-              <button className="text-btn" onClick={runDecision} disabled={busy}>
+              <button className="text-btn" onClick={runDecision} disabled={busy || !canControl}>
                 <Zap size={15} /> {t.run_check}
               </button>
             </div>
+
+            {!canControl && <p role="note" className="muted-note">{t.read_only_notice}</p>}
 
             <div className="duration-control">
               <span>{t.watering_duration}</span>
@@ -857,7 +893,7 @@ function App() {
               </div>
 
               {overview?.photo && (
-                <button className="small-outline" style={{ marginTop: 10 }} onClick={analyzePhoto} disabled={busy}>
+                <button className="small-outline" style={{ marginTop: 10 }} onClick={analyzePhoto} disabled={busy || !canControl}>
                   <Zap size={13} /> {t.analyze_photo_btn}
                 </button>
               )}
@@ -876,6 +912,12 @@ function App() {
                     <small>{t.possible_stress_label}: {overview.photo.vision.possible_stress_signs.join(' · ')}</small>
                   )}
                   <small>{t.vision_disclaimer}</small>
+                  {candidateSpecies && canControl && (
+                    <button className="small-outline" style={{ marginTop: 8 }} onClick={useSuggestedSpecies} disabled={busy}>
+                      {t.use_as_species}: {String(candidateSpecies)}
+                    </button>
+                  )}
+                  <small>{t.species_candidate_note}</small>
                 </div>
               )}
             </div>

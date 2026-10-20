@@ -1,8 +1,9 @@
-import sys
-from pathlib import Path
-from contextlib import asynccontextmanager
 import asyncio
 import logging
+import sys
+from contextlib import asynccontextmanager
+from datetime import datetime, timezone
+from pathlib import Path
 
 # Ensure backend root is on sys.path regardless of execution directory
 backend_root = Path(__file__).resolve().parents[1]
@@ -11,123 +12,95 @@ if str(backend_root) not in sys.path:
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from app.core.config import settings, is_serverless
-from app.db.database import init_db
-from app.api.routes import router, upload_photo
-from app.api.auth_routes import auth_router
-from app.services.mqtt_service import start_mqtt, stop_mqtt, mqtt_status
-from app.db.database import db_session
-from app.services.decision_engine import evaluate_plant
+from fastapi.responses import JSONResponse
 
-logging.basicConfig(level=logging.INFO,format='%(asctime)s %(levelname)s %(name)s: %(message)s')
+from app.api.auth_routes import auth_router
+from app.api.routes import public, router, upload_photo
+from app.core.config import is_serverless, settings, validate_settings
+from app.db.database import db_session, init_db
+from app.services import device_state
+from app.services.decision_engine import evaluate_plant
+from app.services.mqtt_service import mqtt_status, start_mqtt, stop_mqtt
+from app.services.telemetry import prune_old_readings
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(name)s: %(message)s')
+log = logging.getLogger(__name__)
+
 
 async def automatic_decision_loop():
-    # Deliberately opt-in: no automatic pump commands until AUTO_DECISIONS_ENABLED=true.
+    """Evaluates every Auto plant. Pump commands are only sent when AUTO_DECISIONS_ENABLED=true."""
+    await asyncio.sleep(30)
     while True:
-        await asyncio.sleep(max(1, settings.decision_interval_minutes) * 60)
-        if not settings.auto_decisions_enabled:
-            continue
         try:
             with db_session() as db:
                 plants = db.execute("SELECT plant_id FROM plants WHERE mode='auto'").fetchall()
             for row in plants:
-                await asyncio.to_thread(evaluate_plant, row['plant_id'], True)
+                # Decisions are always logged (advisory); commands are executed only when explicitly enabled.
+                await asyncio.to_thread(evaluate_plant, row['plant_id'], settings.auto_decisions_enabled)
         except Exception:
-            logging.exception('Automatic decision cycle failed')
+            log.exception('Automatic decision cycle failed')
+        await asyncio.sleep(max(1, settings.decision_interval_minutes) * 60)
+
+
+async def maintenance_loop():
+    """Marks unconfirmed commands and applies age-based retention. Never re-sends a command."""
+    last_prune = datetime.min.replace(tzinfo=timezone.utc)
+    while True:
+        try:
+            await asyncio.to_thread(device_state.sweep_unconfirmed)
+            if (datetime.now(timezone.utc) - last_prune).total_seconds() > 86400:
+                await asyncio.to_thread(prune_old_readings)
+                last_prune = datetime.now(timezone.utc)
+        except Exception:
+            log.exception('Maintenance cycle failed')
+        await asyncio.sleep(30)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    validate_settings()
+    if is_serverless:
+        log.error('Serverless runtime detected: MQTT, the scheduler and SQLite persistence will NOT work. Deploy as a long-running service.')
+    init_db()
+    start_mqtt()
+    tasks = [asyncio.create_task(automatic_decision_loop()), asyncio.create_task(maintenance_loop())]
     try:
-        init_db()
-    except Exception:
-        logging.getLogger(__name__).exception('init_db failed during lifespan')
-
-    if not is_serverless:
-        start_mqtt()
-        task = asyncio.create_task(automatic_decision_loop())
         yield
-        task.cancel()
-        try:
-            await task
-        except asyncio.CancelledError:
-            pass
+    finally:
+        for t in tasks:
+            t.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
         stop_mqtt()
-    else:
-        yield
 
-app=FastAPI(title=settings.app_name,version='0.1.0',description='Prototype API for ESP32 smart irrigation.',lifespan=lifespan)
-app.add_middleware(CORSMiddleware,allow_origins=settings.cors_list,allow_credentials=False,allow_methods=['GET','POST','PATCH','OPTIONS'],allow_headers=['*'])
-app.include_router(router,prefix=settings.api_prefix)
-app.include_router(auth_router,prefix=settings.api_prefix)
-# Backwards-compatible root path required by the original ESP32-CAM firmware.
+
+app = FastAPI(title=settings.app_name, version='1.0.0', description='Greetopia smart irrigation API.', lifespan=lifespan)
+app.add_middleware(CORSMiddleware, allow_origins=settings.cors_list, allow_credentials=False,
+                   allow_methods=['GET', 'POST', 'PATCH', 'OPTIONS'], allow_headers=['Authorization', 'Content-Type', 'X-Greetopia-Platform'])
+app.include_router(public, prefix=settings.api_prefix)
+app.include_router(router, prefix=settings.api_prefix)
+app.include_router(auth_router, prefix=settings.api_prefix)
+# Device-facing endpoints (ESP32-CAM contract: POST /upload with X-Plant-Id). Authenticated with X-Device-Token.
 app.add_api_route('/upload', upload_photo, methods=['POST'], status_code=201, include_in_schema=False)
+app.add_api_route(settings.api_prefix + '/upload', upload_photo, methods=['POST'], status_code=201, include_in_schema=False)
+
+
 @app.get('/')
 def root():
-    return {'service': settings.app_name, 'docs': '/docs', 'api_prefix': settings.api_prefix, 'health': '/health/ready'}
+    return {'service': settings.app_name, 'api_prefix': settings.api_prefix, 'health': '/health/ready'}
+
 
 @app.get('/health/live', tags=['health'])
 def health_live():
-    """Liveness probe: process is running. Does not depend on external services."""
     return {'status': 'alive', 'service': settings.app_name}
+
 
 @app.get('/health/ready', tags=['health'])
 def health_ready():
-    """Readiness probe: verify the database works; report MQTT as a dependency status."""
-    from datetime import datetime, timezone
-    database = {'ok': False}
     try:
         with db_session() as db:
             db.execute('SELECT 1').fetchone()
-        database = {'ok': True}
-    except Exception as exc:
-        logging.getLogger(__name__).exception('Readiness database check failed')
-        from fastapi.responses import JSONResponse
-        return JSONResponse(status_code=503, content={
-            'status': 'not_ready', 'database': database, 'error': str(exc),
-            'mqtt': mqtt_status(), 'checked_at': datetime.now(timezone.utc).isoformat(),
-        })
-    mqtt = mqtt_status()
-    # MQTT degradation is reported, not used to restart the API endlessly while a broker is offline.
-    return {
-        'status': 'ready', 'service': settings.app_name,
-        'database': database, 'mqtt': mqtt,
-        'checked_at': datetime.now(timezone.utc).isoformat(),
-    }
-
-@app.get('/_debug', include_in_schema=False)
-def debug_info():
-    """Exposes runtime config & DB connectivity for remote diagnostics. Remove before going to production."""
-    import traceback, sys, os as _os
-    from pathlib import Path as P
-    db_path = settings.database_path
-    db_parent = str(P(db_path).parent)
-    db_ok = False; db_error = None
-    plants_count = None
-    try:
-        with db_session() as db:
-            row = db.execute('SELECT COUNT(*) as c FROM plants').fetchone()
-            plants_count = row['c']
-        db_ok = True
     except Exception:
-        db_error = traceback.format_exc()
-    parent_writable = False
-    try:
-        test = P(db_parent) / '.write_test2'
-        test.touch(); test.unlink()
-        parent_writable = True
-    except Exception:
-        pass
-    return {
-        'is_serverless': is_serverless,
-        'database_path': db_path,
-        'database_parent': db_parent,
-        'database_parent_writable': parent_writable,
-        'database_ok': db_ok,
-        'database_error': db_error,
-        'plants_count': plants_count,
-        'photo_dir': settings.photo_dir,
-        'env_indicators': [k for k in _os.environ.keys() if 'VERCEL' in k or 'AWS' in k or 'LAMBDA' in k],
-        'python': sys.version,
-        'cwd': str(P.cwd()),
-    }
+        log.exception('Readiness database check failed')
+        return JSONResponse(status_code=503, content={'status': 'not_ready', 'database': {'ok': False}})
+    return {'status': 'ready', 'service': settings.app_name, 'database': {'ok': True}, 'mqtt': mqtt_status(),
+            'checked_at': datetime.now(timezone.utc).isoformat()}

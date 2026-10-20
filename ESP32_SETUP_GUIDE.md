@@ -65,7 +65,7 @@ This guide explains how to connect your physical sensors to the ESP32, configure
 ## 4. Firmware Configuration
 
 Open the ready-to-use sketch file in Arduino IDE:
-👉 **[`firmware_reference/sensor_node_greetopia_ready.ino`](file:///d:/Greetopia/firmware_reference/sensor_node_greetopia_ready.ino)**
+👉 **[`firmware/sensor_node/`](firmware/sensor_node/) (v2; copy `secrets.h.example` to `secrets.h` first)**
 
 ### Step 4.1: Enter Your WiFi Credentials
 ```cpp
@@ -139,7 +139,7 @@ Once the ESP32 sends its first packet:
 
 ## 8. Calibrating the Capacitive Soil Sensors
 
-Every capacitive soil moisture sensor has slight hardware variations. To calibrate yours for maximum precision:
+Every soil moisture probe (the original firmware comments describe cheap resistive probes; capacitive probes also work) has slight hardware variations. To calibrate yours for maximum precision:
 
 1. **Dry Air Reading (0% Moisture):**
    - Hold the sensor in the air.
@@ -172,3 +172,8 @@ Every capacitive soil moisture sensor has slight hardware variations. To calibra
   - Most relay modules are "active LOW". If yours turns ON when it shouldn't, verify `const bool RELAY_ACTIVE_LOW = true;` in the sketch.
 - **Dashboard shows "Waiting for sensor data":**
   - Greetopia marks data as stale after 5 minutes without a new reading (`SENSOR_STALE_MINUTES = 5`). Ensure the ESP32 is powered on and sending data every 10 seconds.
+
+
+---
+> **Safety update:** use firmware v2 (`firmware/sensor_node`, `firmware/camera_node`) and a **private MQTT broker** (`deploy/mosquitto/`).
+> Add a 10 k pull-up from the relay IN pin to 3.3 V so the relay stays OFF while the ESP32 resets, and run `docs/BENCH_TEST.md` with the pump disconnected first.
