@@ -11,6 +11,8 @@ class PlantCreate(BaseModel):
     ideal_moisture_max: float = Field(default=65, ge=0, le=100)
     light_needs: str = Field(default='', max_length=120)
     notes: str = Field(default='', max_length=2000)
+    latitude: float | None = Field(default=None, ge=-90, le=90)
+    longitude: float | None = Field(default=None, ge=-180, le=180)
 
 class PlantUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=80)
@@ -20,12 +22,15 @@ class PlantUpdate(BaseModel):
     ideal_moisture_max: float | None = Field(default=None, ge=0, le=100)
     light_needs: str | None = Field(default=None, max_length=120)
     notes: str | None = Field(default=None, max_length=2000)
+    latitude: float | None = Field(default=None, ge=-90, le=90)
+    longitude: float | None = Field(default=None, ge=-180, le=180)
 
 class ModeUpdate(BaseModel):
     mode: Literal['auto','manual']
 
 class WaterRequest(BaseModel):
     duration_seconds: int = Field(default=5, ge=1, le=15)
+    reason: str = Field(default='Manual watering', max_length=200)
 
 class ChatRequest(BaseModel):
     question: str = Field(min_length=1, max_length=1200)

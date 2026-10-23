@@ -6,7 +6,7 @@ services:
     region: frankfurt
     dockerContext: ./backend
     dockerfilePath: ./backend/Dockerfile
-    numInstances: 1
+    numInstances: 1            # SQLite + MQTT consumer + scheduler: exactly ONE long-running instance
     healthCheckPath: /health/ready
     autoDeployTrigger: commit
     disk:
@@ -14,16 +14,23 @@ services:
       mountPath: /app/storage
       sizeGB: 1
     envVars:
+      - key: APP_ENV
+        value: production
       - key: DATABASE_PATH
         value: /app/storage/smart_irrigation.db
       - key: PHOTO_DIR
         value: /app/storage/photos
+      - key: JWT_SECRET
+        generateValue: true
+      - key: DEVICE_UPLOAD_TOKEN
+        sync: false            # set in the Render dashboard; same value goes into the ESP32 secrets.h
+      - key: ADMIN_EMAILS
+        sync: false
       - key: CORS_ORIGINS
-        value: https://your-greetopia-site.vercel.app,capacitor://localhost,http://localhost
+        value: https://your-greetopia-site.vercel.app,capacitor://localhost
       - key: MQTT_ENABLED
-        value: "false"
+        value: "false"         # enable only with a private broker (MQTT_HOST/USERNAME/PASSWORD/TLS set in the dashboard)
       - key: AUTO_DECISIONS_ENABLED
         value: "false"
-      # Keep external AI calls disabled on a public deployment until API auth and rate limits exist.
       - key: GEMINI_ENABLED
-        value: "false"
+        value: "false"         # chat/vision are rate limited and need a signed-in user, but keep off until keys are set

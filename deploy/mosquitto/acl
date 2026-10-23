@@ -1,0 +1,16 @@
+# The backend may read all telemetry and is the ONLY identity allowed to publish pump commands.
+user greetopia_backend
+topic read  plants/#
+topic write plants/+/water
+
+# Each sensor node may publish only its own telemetry and read only its own command topic.
+# Replace "plant01" with your plant id (one user per node).
+user plant01
+topic write plants/plant01/soil/+
+topic write plants/plant01/temp
+topic write plants/plant01/humidity
+topic write plants/plant01/status
+topic write plants/plant01/availability
+topic write plants/plant01/ack
+topic write plants/plant01/fault
+topic read  plants/plant01/water

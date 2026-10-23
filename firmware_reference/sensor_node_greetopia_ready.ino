@@ -1,4 +1,13 @@
 /*
+  !!! DEPRECATED - DO NOT FLASH TO A REAL PUMP !!!
+  Replaced by firmware/sensor_node (v2). Known problems of this variant:
+   - the MQTT handler no longer checks !pumpRunning, so every new "ON" restarts the timer and repeated commands keep the pump on;
+   - the 15 s cutoff sits behind blocking Wi-Fi/MQTT reconnect loops;
+   - HTTP mode has no command channel and HTTPS has no certificate handling;
+   - based on the older sensor firmware (3000/1200, no power-switched probes, no calibration mode).
+  Kept only for reference.
+*/
+/*
   ============================================================
   SMART IRRIGATION - SENSOR NODE FIRMWARE (ESP32)
   Greetopia Ready: Supports Authenticated MQTT and Direct HTTP API

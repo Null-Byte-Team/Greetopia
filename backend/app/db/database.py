@@ -44,6 +44,23 @@ CREATE TABLE IF NOT EXISTS plant_knowledge (
  aliases_json TEXT NOT NULL DEFAULT '[]', data_json TEXT NOT NULL, source_name TEXT NOT NULL, source_url TEXT NOT NULL, license TEXT DEFAULT '', updated_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_plant_knowledge_name ON plant_knowledge(common_name);
+CREATE TABLE IF NOT EXISTS latest_readings (
+ plant_id TEXT NOT NULL, metric TEXT NOT NULL, value REAL NOT NULL, received_at TEXT NOT NULL,
+ PRIMARY KEY (plant_id, metric)
+);
+CREATE TABLE IF NOT EXISTS device_status (
+ plant_id TEXT PRIMARY KEY, pump_status TEXT, pump_observed_at TEXT, availability TEXT, availability_at TEXT,
+ last_ack TEXT, last_ack_at TEXT, last_fault TEXT, last_fault_at TEXT, last_message_at TEXT
+);
+CREATE TABLE IF NOT EXISTS alerts (
+ id INTEGER PRIMARY KEY AUTOINCREMENT, plant_id TEXT, kind TEXT NOT NULL, severity TEXT NOT NULL DEFAULT 'warning',
+ message TEXT NOT NULL, created_at TEXT NOT NULL, resolved_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_alerts_plant ON alerts(plant_id, created_at);
+CREATE TABLE IF NOT EXISTS quarantine_messages (
+ id INTEGER PRIMARY KEY AUTOINCREMENT, topic TEXT NOT NULL, payload_preview TEXT NOT NULL, reason TEXT NOT NULL, received_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_events_plant_time ON irrigation_events(plant_id, created_at);
 """
 
 _initialized = False
@@ -92,29 +109,37 @@ def _seed_knowledge(conn):
         logging.getLogger(__name__).exception('Could not seed plant knowledge table')
 
 
+# Additive, idempotent column migrations for databases created by earlier versions.
+_COLUMNS = {
+    'plants': {'latitude': 'REAL', 'longitude': 'REAL'},
+    'decisions': {'engine_version': 'TEXT', 'duration_s': 'INTEGER DEFAULT 0', 'executed': 'INTEGER DEFAULT 0', 'inputs_json': 'TEXT'},
+    'photos': {'sha256': 'TEXT', 'width': 'INTEGER', 'height': 'INTEGER', 'vision_status': "TEXT DEFAULT 'none'", 'vision_error': 'TEXT'},
+    'irrigation_events': {'requested_by': 'TEXT', 'reason': 'TEXT', 'observed_start_at': 'TEXT', 'observed_end_at': 'TEXT', 'measured_water_ml': 'REAL'},
+}
+
+
+def _migrate(conn):
+    for table, cols in _COLUMNS.items():
+        existing = {row['name'] for row in conn.execute(f'PRAGMA table_info({table})').fetchall()}
+        for name, ddl in cols.items():
+            if name not in existing:
+                conn.execute(f'ALTER TABLE {table} ADD COLUMN {name} {ddl}')
+    conn.execute('CREATE UNIQUE INDEX IF NOT EXISTS uq_photos_plant_sha ON photos(plant_id, sha256) WHERE sha256 IS NOT NULL')
+
+
 def init_db():
     global _initialized
-    try:
-        Path(settings.database_path).parent.mkdir(parents=True, exist_ok=True)
-    except OSError:
-        settings.database_path = '/tmp/smart_irrigation.db'
-        Path(settings.database_path).parent.mkdir(parents=True, exist_ok=True)
-
-    try:
-        conn = sqlite3.connect(settings.database_path, timeout=30, check_same_thread=False)
-    except sqlite3.OperationalError:
-        settings.database_path = '/tmp/smart_irrigation.db'
-        Path(settings.database_path).parent.mkdir(parents=True, exist_ok=True)
-        conn = sqlite3.connect(settings.database_path, timeout=30, check_same_thread=False)
-
+    Path(settings.database_path).parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(settings.database_path, timeout=30, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute('PRAGMA foreign_keys = ON')
     try:
+        conn.execute('PRAGMA journal_mode = WAL')
         conn.executescript(SCHEMA)
-        # Lightweight migration for existing prototype databases.
         plant_columns = {row['name'] for row in conn.execute('PRAGMA table_info(plants)').fetchall()}
         if 'species_source' not in plant_columns:
             conn.execute("ALTER TABLE plants ADD COLUMN species_source TEXT DEFAULT 'unknown'")
+        _migrate(conn)
         conn.execute(
             'INSERT OR IGNORE INTO plants (plant_id,name,species,growth_stage,created_at) VALUES (?,?,?,?,?)',
             (settings.default_plant_id, 'My Plant', 'Unknown', 'Unknown', datetime.now(timezone.utc).isoformat()))
@@ -133,12 +158,7 @@ def ensure_db():
 
 def connect():
     ensure_db()
-    try:
-        conn = sqlite3.connect(settings.database_path, timeout=30, check_same_thread=False)
-    except sqlite3.OperationalError:
-        settings.database_path = '/tmp/smart_irrigation.db'
-        init_db()
-        conn = sqlite3.connect(settings.database_path, timeout=30, check_same_thread=False)
+    conn = sqlite3.connect(settings.database_path, timeout=30, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute('PRAGMA foreign_keys = ON')
     conn.execute('PRAGMA busy_timeout = 30000')

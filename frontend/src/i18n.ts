@@ -186,6 +186,14 @@ export interface Translations {
   mode_changed: string;
   water_queued: string;
   water_not_sent: string;
+  device_online: string;
+  device_stale: string;
+  device_offline: string;
+  read_only_notice: string;
+  last_command: string;
+  use_as_species: string;
+  species_candidate_note: string;
+  cmd_published_waiting: string;
   decision_prefix: string;
   species_saved_prefix: string;
   species_cleared: string;
@@ -380,6 +388,14 @@ export const translations: Record<Language, Translations> = {
     mode_changed: 'Mode changed to',
     water_queued: 'Water command queued for',
     water_not_sent: 'Not sent',
+    device_online: 'Device online',
+    device_stale: 'Device stale (no recent data)',
+    device_offline: 'Device offline',
+    read_only_notice: 'Your account is read-only. Ask an administrator for operator access to control the pump.',
+    last_command: 'Last command',
+    use_as_species: 'Use as confirmed species',
+    species_candidate_note: 'AI species suggestion (a candidate, not confirmed)',
+    cmd_published_waiting: 'Sent to the broker; waiting for the device to confirm',
     decision_prefix: 'Decision',
     species_saved_prefix: 'Plant species saved as',
     species_cleared: 'Species cleared.',
@@ -572,6 +588,14 @@ export const translations: Record<Language, Translations> = {
     mode_changed: 'تم تغيير الوضع إلى',
     water_queued: 'تم جدولة أمر الري لمدة',
     water_not_sent: 'لم يتم الإرسال',
+    device_online: 'الجهاز متصل',
+    device_stale: 'الجهاز متأخر (لا بيانات حديثة)',
+    device_offline: 'الجهاز غير متصل',
+    read_only_notice: 'حسابك للقراءة فقط. اطلب من المسؤول صلاحية المشغّل للتحكم في الطلمبة.',
+    last_command: 'آخر أمر',
+    use_as_species: 'اعتماد كنوع مؤكد',
+    species_candidate_note: 'اقتراح الذكاء الاصطناعي للنوع (مرشح وليس مؤكدًا)',
+    cmd_published_waiting: 'تم الإرسال إلى الـ broker وبانتظار تأكيد الجهاز',
     decision_prefix: 'القرار',
     species_saved_prefix: 'تم حفظ صنف النبات كـ',
     species_cleared: 'تم مسح الصنف.',
