@@ -7,8 +7,6 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
-import joblib
-
 from app.core.config import settings
 
 
@@ -23,6 +21,7 @@ def sha256_file(path: Path) -> str:
 
 
 def save(model, meta: dict) -> str:
+    import joblib  # lazy
     version = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%f") + "-" + meta["dataset"]["sha256"][:8]
     d = root() / version
     d.mkdir(parents=True, exist_ok=False)
@@ -68,5 +67,6 @@ def load_approved(plant_id: str | None = None):
             continue
         art = d / "model.joblib"
         if art.is_file() and sha256_file(art) == m["artifact_sha256"]:
+            import joblib  # lazy
             return joblib.load(art), m
     return None
