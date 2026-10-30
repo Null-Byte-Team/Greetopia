@@ -15,6 +15,7 @@ from datetime import datetime, timedelta, timezone
 
 from app.core.config import settings
 from app.db.database import db_session
+from app.services import realtime
 
 PENDING = ("published", "queued", "acknowledged")
 FAILED = ("failed_publish", "not_sent", "rejected")
@@ -39,6 +40,7 @@ def add_alert(db, plant_id: str | None, kind: str, message: str, severity: str =
         return
     db.execute("INSERT INTO alerts(plant_id,kind,severity,message,created_at) VALUES(?,?,?,?,?)",
                (plant_id, kind, severity, message[:300], _now().isoformat()))
+    realtime.publish("alert", plant_id, {"kind": kind, "severity": severity, "message": message[:300]})
 
 
 def touch(db, plant_id: str, now: datetime) -> None:
@@ -85,6 +87,7 @@ def record_status(plant_id: str, status: str, now: datetime | None = None) -> di
                 db.execute("UPDATE irrigation_events SET observed_end_at=?,status=CASE status WHEN 'unrequested' THEN 'unrequested' ELSE 'confirmed' END WHERE id=?",
                            (now.isoformat(), ev["id"]))
                 result["reconciled"] = ev["id"]
+    realtime.publish("pump", plant_id, {"status": status, "event_id": result["reconciled"]})
     return result
 
 

@@ -1,0 +1,11 @@
+# Randomised A/B experiments
+
+1. **Create** (`POST /experiments`): hypothesis (>= 10 chars), >= 2 plants, arms = `adaptive` + a control (`fixed_schedule` or `fixed_threshold`), seed, analysis plan, primary metrics, data origin (`experimental` | `simulated`). Plants are shuffled with `random.Random(seed)` then assigned round-robin, so groups are balanced and the assignment is reproducible from the seed.
+2. **Start**: a plant can be in only one running experiment; the settings and each plant's profile are snapshotted. From then the control loop runs the assigned arm. Control arms use the **same irrigation controller**, so the same safety limits (15 s, cooldown, daily caps, pending-command block, node must be online, manual mode respected) apply to every arm. Nothing is sent unless `AUTO_DECISIONS_ENABLED=true`; otherwise decisions are logged as advisory.
+   - `fixed_schedule`: waters `seconds` every `interval_hours` regardless of moisture (defaults 8 s / 12 h).
+   - `fixed_threshold`: waters `seconds` when root moisture < `threshold_pct` (default 35, 8 s), with no hysteresis, trend or weather; stale/suspect sensors skip.
+3. **Results** (`GET /experiments/{key}/results`) are computed only from recorded data in the window: commands, requested/observed pump seconds, water (**measured** if every event has `measured_water_ml`, else **estimated** from `FLOW_ML_PER_SECOND`, else unavailable), time below target, stress integral, root std, growth proxy slope.
+4. **Statistics**: the unit is the plant. Mann-Whitney U (exact permutation for n1+n2 <= 16, otherwise normal approximation with tie and continuity corrections; cross-checked with SciPy in the tests), rank-biserial effect size, bootstrap 95% CI of the median difference (seeded). **With fewer than 3 plants per arm no p-value is reported.**
+5. **Export** (`/report.md`, `/export.zip`): report (hypothesis, plan, design, tables, limitations), `experiment.json`, per-plant CSV, raw readings per plant, irrigation events. Simulated experiments carry a banner and `simulated` in every file.
+
+Limits: positions of plants are not controlled by the software; growth is a camera proxy; low n means low power. Do not claim savings or growth gains the tables do not show.

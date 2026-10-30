@@ -13,6 +13,7 @@ import threading
 from datetime import datetime, timezone
 
 from app.core.config import FIRMWARE_MAX_PUMP_S, settings
+from app.services import command_signing
 from app.services.telemetry import IngestError, ingest_mqtt, quarantine
 
 log = logging.getLogger(__name__)
@@ -145,6 +146,7 @@ def publish_water(plant_id: str, duration_seconds: int):
     payload = f"ON:{duration_seconds}"
     if _client is None or not settings.mqtt_enabled or not _client.is_connected():
         return {"published": False, "topic": topic, "payload": payload, "message": "MQTT is disabled or disconnected; command was not sent."}
+    payload = command_signing.build_payload(plant_id, duration_seconds)  # plain "ON:<s>" unless COMMAND_SIGNING_KEY is set
     info = _client.publish(topic, payload=payload, qos=1, retain=False)
     if info.rc != 0:
         return {"published": False, "topic": topic, "payload": payload, "message": f"MQTT publish failed with code {info.rc}"}
@@ -154,7 +156,8 @@ def publish_water(plant_id: str, duration_seconds: int):
         pass
     if not info.is_published():
         return {"published": False, "topic": topic, "payload": payload, "message": "Broker did not acknowledge the command in time; treat the outcome as unconfirmed."}
-    return {"published": True, "topic": topic, "payload": payload, "message": "Command accepted by the MQTT broker (not yet confirmed by the device)."}
+    return {"published": True, "topic": topic, "payload": payload.split(":")[0] + ":" + str(duration_seconds) + (":<signed>" if command_signing.enabled() else ""),
+            "message": "Command accepted by the MQTT broker (not yet confirmed by the device)."}
 
 
 def stop_mqtt():

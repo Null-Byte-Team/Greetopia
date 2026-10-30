@@ -4,7 +4,7 @@
 [![Frontend](https://img.shields.io/badge/Frontend-React%2018%20%7C%20Vite%20%7C%20TypeScript-61dafb?style=flat-square&logo=react)](https://vitejs.dev)
 [![AI Engine](https://img.shields.io/badge/AI-Google%20Gemini-orange?style=flat-square&logo=google)](https://ai.google.dev)
 [![Hardware](https://img.shields.io/badge/Hardware-ESP32%20%2B%20ESP32--CAM-red?style=flat-square&logo=espressif)](https://www.espressif.com)
-[![Tests](https://img.shields.io/badge/Backend%20Tests-105%20Passing-success?style=flat-square&logo=pytest)](https://pytest.org)
+[![Tests](https://img.shields.io/badge/Backend%20Tests-passing-success?style=flat-square&logo=pytest)](https://pytest.org)
 
 **Greetopia** is a full-stack, AI-grounded smart irrigation and plant telemetry platform. It connects physical ESP32 sensor and camera nodes to an interactive real-time dashboard powered by **FastAPI**, **React**, **SQLite**, and **Google Gemini AI**.
 
@@ -88,6 +88,11 @@ For a full step-by-step wiring guide, see [`ESP32_SETUP_GUIDE.md`](ESP32_SETUP_G
 | **DHT22** | Data Out | **GPIO 4** | Ambient temperature & relative humidity |
 | **Relay Module** | Signal (IN) | **GPIO 26** | Submersible pump control (Active LOW) |
 | **ESP32-CAM** | Camera Lens | Standalone Node | Periodic JPEG plant captures |
+
+---
+
+## Research features
+[`docs/INSIGHTS.md`](docs/INSIGHTS.md) (data-derived analytics) | [`docs/EXPERIMENTS.md`](docs/EXPERIMENTS.md) (randomised A/B with statistics and data pack) | [`docs/ML.md`](docs/ML.md) (experimental predictor) | [`docs/ISEF_METHODOLOGY.md`](docs/ISEF_METHODOLOGY.md) (template) | [`docs/SECURITY.md`](docs/SECURITY.md)
 
 ---
 
@@ -243,7 +248,7 @@ Run backend test verification (includes API routes, VPD, decision engine, and te
 cd backend
 python -m pytest tests/ -v
 ```
-*(105 backend tests; firmware logic: `g++ -std=c++17 firmware/sensor_node/tests/test_pump_logic.cpp`).*
+*(backend tests incl. a real Mosquitto round trip; firmware logic: `g++ -std=c++17 firmware/sensor_node/tests/test_pump_logic.cpp`).*
 
 ---
 

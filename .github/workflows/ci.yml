@@ -1,0 +1,47 @@
+name: ci
+on: [push, pull_request]
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: sudo apt-get update && sudo apt-get install -y mosquitto
+      - run: pip install -r backend/requirements-dev.txt scipy
+      - run: cd backend && python -m pytest tests -q
+  firmware-logic:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          cd firmware/sensor_node
+          g++ -std=c++17 -Wall -Wextra -Werror -o /tmp/t_pump tests/test_pump_logic.cpp && /tmp/t_pump
+          g++ -std=c++17 -Wall -Wextra -Werror -o /tmp/t_sig tests/test_signed_command.cpp && /tmp/t_sig
+  firmware-compile:   # compile-only check of the ESP32 sketches (not run on hardware)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: arduino/setup-arduino-cli@v2
+      - run: |
+          arduino-cli core update-index --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          arduino-cli core install esp32:esp32 --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          arduino-cli lib install PubSubClient "DHT sensor library" "Adafruit Unified Sensor"
+          cp firmware/sensor_node/secrets.h.example firmware/sensor_node/secrets.h
+          cp firmware/camera_node/secrets.h.example firmware/camera_node/secrets.h
+          arduino-cli compile --fqbn esp32:esp32:esp32 firmware/sensor_node
+          arduino-cli compile --fqbn esp32:esp32:esp32cam firmware/camera_node
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: cd frontend && npm ci && npm run build && npm audit --omit=dev
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: gitleaks/gitleaks-action@v2
+        env: { GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}" }

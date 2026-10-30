@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 
 from app.core.config import settings
 from app.db.database import db_session
-from app.services import device_state
+from app.services import device_state, realtime
 
 NUMERIC_METRICS = {"soil_surface", "soil_mid", "soil_root", "temperature_c", "humidity_pct", "leaf_wetness_pct"}
 PERCENT_METRICS = {"soil_surface", "soil_mid", "soil_root", "humidity_pct", "leaf_wetness_pct"}
@@ -90,6 +90,7 @@ def record_reading(plant_id: str, metric: str, value, topic: str, received_at=No
                    "ON CONFLICT(plant_id,metric) DO UPDATE SET value=excluded.value,received_at=excluded.received_at",
                    (plant_id, metric, value, stamp))
         device_state.touch(db, plant_id, now)
+    realtime.publish("reading", plant_id, {"metric": metric, "value": value, "received_at": stamp})
     return {"plant_id": plant_id, "metric": metric, "value": value, "received_at": stamp, "topic": topic}
 
 

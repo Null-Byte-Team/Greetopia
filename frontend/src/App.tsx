@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Activity, Droplets, Leaf, Thermometer, Wind, CloudRain, Camera, ShieldCheck,
   CircleAlert, RefreshCw, Send, Sprout, ChevronDown, Zap, Clock3, Settings2,
@@ -9,6 +9,11 @@ import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YA
 import { api, UNAUTHORIZED_EVENT, apiConfigError, API_ORIGIN } from './api';
 import { translations, Language, Theme } from './i18n';
 import SignInPage from './SignInPage';
+import Insights from './Insights';
+import Experiments from './Experiments';
+import Admin from './Admin';
+import { useLive } from './live';
+import { useX } from './i18n_extra';
 
 type Plant = {
   plant_id: string;
@@ -167,6 +172,10 @@ function App() {
   const [diary, setDiary] = useState<any[]>([]);
   const [speciesEdit, setSpeciesEdit] = useState('');
   const [speciesSuggestions, setSpeciesSuggestions] = useState<any[]>([]);
+  const [view, setView] = useState<'dashboard' | 'insights' | 'experiments' | 'admin'>('dashboard');
+  const [live, setLive] = useState(false);
+  const lastLiveLoad = useRef(0);
+  const x = useX(lang);
 
   const load = useCallback(async () => {
     setError('');
@@ -195,9 +204,22 @@ function App() {
 
   useEffect(() => {
     load();
-    const timer = setInterval(load, 15000);
+    const timer = setInterval(load, live ? 60000 : 15000); // polling is only a safety net while the WebSocket is connected
     return () => clearInterval(timer);
-  }, [load]);
+  }, [load, live]);
+
+  useLive(
+    !!user,
+    msg => {
+      if (msg.plant_id && msg.plant_id !== plantId) return;
+      if (Date.now() - lastLiveLoad.current > 5000) {
+        lastLiveLoad.current = Date.now();
+        load();
+      }
+    },
+    load, // after every (re)connect the full state is re-fetched
+    setLive
+  );
 
   useEffect(() => {
     const handler = (event: Event) => {
@@ -453,18 +475,29 @@ function App() {
         </div>
 
         <div className="workspace-label">{t.workspace}</div>
-        <button className="nav-item active">
+        <button className={`nav-item ${view === 'dashboard' ? 'active' : ''}`} onClick={() => setView('dashboard')}>
           <Activity size={17} /> {t.nav_overview} <span className="nav-dot" />
         </button>
-        <button className="nav-item" onClick={() => document.getElementById('plant-profile')?.scrollIntoView({ behavior: 'smooth' })}>
+        <button className="nav-item" onClick={() => { setView('dashboard'); setTimeout(() => document.getElementById('plant-profile')?.scrollIntoView({ behavior: 'smooth' }), 60); }}>
           <Leaf size={17} /> {t.nav_profiles}
         </button>
-        <button className="nav-item" onClick={() => document.getElementById('history')?.scrollIntoView({ behavior: 'smooth' })}>
+        <button className="nav-item" onClick={() => { setView('dashboard'); setTimeout(() => document.getElementById('history')?.scrollIntoView({ behavior: 'smooth' }), 60); }}>
           <History size={17} /> {t.nav_history}
         </button>
-        <button className="nav-item" onClick={() => document.getElementById('plant-diary')?.scrollIntoView({ behavior: 'smooth' })}>
+        <button className="nav-item" onClick={() => { setView('dashboard'); setTimeout(() => document.getElementById('plant-diary')?.scrollIntoView({ behavior: 'smooth' }), 60); }}>
           <Clock3 size={17} /> {t.nav_diary}
         </button>
+        <button className={`nav-item ${view === 'insights' ? 'active' : ''}`} onClick={() => setView('insights')}>
+          <Settings2 size={17} /> {x('nav_insights')}
+        </button>
+        <button className={`nav-item ${view === 'experiments' ? 'active' : ''}`} onClick={() => setView('experiments')}>
+          <Zap size={17} /> {x('nav_experiments')}
+        </button>
+        {user?.role === 'admin' && (
+          <button className={`nav-item ${view === 'admin' ? 'active' : ''}`} onClick={() => setView('admin')}>
+            <ShieldCheck size={17} /> {x('nav_admin')}
+          </button>
+        )}
 
         <div className="sidebar-bottom">
           <div className="system-status">
@@ -472,6 +505,7 @@ function App() {
             <div>
               <b>{t.system_status}</b>
               <small>{error ? t.api_unavailable : t.local_dashboard}</small>
+              <small className="live-badge">{live ? x('live_on') : x('live_off')}</small>
             </div>
           </div>
           <div className="sidebar-foot">{t.version}</div>
@@ -575,6 +609,15 @@ function App() {
             )}
           </div>
         </header>
+
+        {view !== 'dashboard' && (
+          <div className="view-pane">
+            {view === 'insights' && <Insights plantId={plantId} lang={lang} />}
+            {view === 'experiments' && <Experiments lang={lang} canControl={canControl} />}
+            {view === 'admin' && <Admin lang={lang} isAdmin={user?.role === 'admin'} />}
+          </div>
+        )}
+        <div style={{ display: view === 'dashboard' ? undefined : 'none' }}>
 
         {error && (
           <div className="error-banner">
@@ -1159,6 +1202,7 @@ function App() {
             <CircleAlert size={13} /> {t.footer_freshness_warning}
           </span>
         </footer>
+        </div>
       </main>
 
       {/* Mobile Download Modal */}

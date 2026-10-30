@@ -4,15 +4,15 @@ import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Query, Request
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
+from fastapi.responses import FileResponse, PlainTextResponse, Response
 
 from app.core.config import settings
 from app.db.database import db_session
 from app.schemas import ChatRequest, ModeUpdate, PlantCreate, PlantUpdate, TelemetryIngest, WaterRequest
-from app.services import device_state
+from app.services import cv_metrics, device_state, experiments, insights, realtime
 from app.services.analytics import dashboard_summary
-from app.services.auth import (current_user, rate_limit, require_admin, require_device, require_operator,
+from app.services.auth import (user_from_token, current_user, rate_limit, require_admin, require_device, require_operator,
                                verify_photo_sig)
 from app.services.chat import answer_question as answer_from_data
 from app.services.decision_engine import evaluate_plant
@@ -378,3 +378,151 @@ def chat(plant_id: str, body: ChatRequest, user: dict = Depends(current_user)):
     except RuntimeError:
         # AI provider missing/failing: answer from stored data only, and say so.
         return {**answer_from_data(plant_id, body.question), 'mode': 'rule_based'}
+
+
+@public.websocket('/ws')
+async def live(ws: WebSocket):
+    """First client message must be {"type":"auth","token":"<JWT>"} (within 5 s). The token never travels in the URL."""
+    await ws.accept()
+    realtime.bind_loop(asyncio.get_running_loop())
+    try:
+        first = await asyncio.wait_for(ws.receive_json(), timeout=5)
+        user = user_from_token(first.get('token', '')) if isinstance(first, dict) and first.get('type') == 'auth' else None
+    except Exception:
+        user = None
+    if not user:
+        await ws.close(code=4401)
+        return
+    client = realtime.Client()
+    if not realtime.add_client(client):
+        await ws.close(code=4429)
+        return
+    try:
+        await ws.send_json({'type': 'hello', 'seq': realtime.current_seq(), 'role': user['role']})
+        recv = asyncio.ensure_future(ws.receive_text())
+        send = asyncio.ensure_future(client.queue.get())
+        while True:
+            done, _ = await asyncio.wait({recv, send}, return_when=asyncio.FIRST_COMPLETED)
+            if send in done:
+                await ws.send_json(send.result())
+                send = asyncio.ensure_future(client.queue.get())
+            if recv in done:
+                recv.result()  # raises WebSocketDisconnect when the client leaves; pings are ignored
+                recv = asyncio.ensure_future(ws.receive_text())
+    except (WebSocketDisconnect, RuntimeError):
+        pass
+    finally:
+        realtime.remove_client(client)
+        for t in (locals().get('recv'), locals().get('send')):
+            if t is not None:
+                t.cancel()
+
+
+# ------------------------------------------------------------------ derived insights (read-only; never sends commands)
+@router.get('/plants/{plant_id}/insights/summary')
+def insights_summary(plant_id: str, days: int = Query(default=7, ge=1, le=30)):
+    get_plant_or_404(plant_id)
+    return insights.summary(plant_id, days)
+
+
+@router.get('/plants/{plant_id}/insights/weekly')
+def insights_weekly(plant_id: str, lang: str = Query(default='en', pattern='^(en|ar)$')):
+    get_plant_or_404(plant_id)
+    return insights.weekly_report(plant_id, lang)
+
+
+@router.get('/plants/{plant_id}/insights/growth')
+def insights_growth(plant_id: str, days: int = Query(default=14, ge=1, le=90)):
+    get_plant_or_404(plant_id)
+    return cv_metrics.growth_series(plant_id, days)
+
+
+@router.post('/plants/{plant_id}/insights/growth/backfill')
+def insights_growth_backfill(plant_id: str, user: dict = Depends(require_operator)):
+    get_plant_or_404(plant_id)
+    return {'analysed': cv_metrics.backfill(plant_id)}
+
+
+# ------------------------------------------------------------------ randomised experiments
+from typing import Literal
+from pydantic import BaseModel, Field
+
+
+class ExperimentCreate(BaseModel):
+    name: str = Field(min_length=3, max_length=100)
+    hypothesis: str = Field(min_length=10, max_length=1000)
+    plant_ids: list[str] = Field(min_length=2, max_length=40)
+    arms: list[Literal['adaptive', 'fixed_threshold', 'fixed_schedule']] = Field(default=['adaptive', 'fixed_schedule'], min_length=2, max_length=3)
+    seed: int = Field(default=42, ge=0, le=2**31 - 1)
+    data_origin: Literal['experimental', 'simulated'] = 'experimental'
+    analysis_plan: str = Field(default='', max_length=3000)
+    primary_metrics: list[str] | None = None
+    params: dict | None = None
+
+
+def _exp(call, *a, **k):
+    try:
+        return call(*a, **k)
+    except experiments.ExperimentError as exc:
+        raise HTTPException(409 if 'running' in str(exc) or 'draft' in str(exc) else 404 if 'not found' in str(exc) else 422, str(exc)) from exc
+
+
+@router.post('/experiments', status_code=201)
+def experiment_create(body: ExperimentCreate, user: dict = Depends(require_operator)):
+    return _exp(experiments.create, body.name, body.hypothesis, body.plant_ids, body.arms, body.seed, body.data_origin, user['email'],
+                body.params, body.analysis_plan, body.primary_metrics)
+
+
+@router.get('/experiments')
+def experiment_list():
+    return experiments.list_all()
+
+
+@router.get('/experiments/{key}')
+def experiment_get(key: str):
+    return _exp(experiments.get, key)
+
+
+@router.post('/experiments/{key}/start')
+def experiment_start(key: str, user: dict = Depends(require_operator)):
+    return _exp(experiments.start, key)
+
+
+@router.post('/experiments/{key}/stop')
+def experiment_stop(key: str, user: dict = Depends(require_operator)):
+    return _exp(experiments.stop, key)
+
+
+@router.get('/experiments/{key}/results')
+def experiment_results(key: str):
+    return _exp(experiments.results, key)
+
+
+@router.get('/experiments/{key}/report.md')
+def experiment_report(key: str):
+    return PlainTextResponse(_exp(experiments.report_markdown, key), media_type='text/markdown; charset=utf-8')
+
+
+@router.get('/experiments/{key}/export.zip')
+def experiment_export(key: str):
+    data = _exp(experiments.export_zip, key)
+    return Response(data, media_type='application/zip', headers={'Content-Disposition': f'attachment; filename="{key}.zip"'})
+
+
+# ------------------------------------------------------------------ ML (experimental; corroborating evidence only)
+@router.get('/plants/{plant_id}/ml/status')
+def ml_status(plant_id: str):
+    from app.ml import registry
+    from app.ml.inference import predict
+    get_plant_or_404(plant_id)
+    versions = [v for v in registry.list_versions() if plant_id in v['plant_ids']]
+    return {'prediction': predict(plant_id, persist=False), 'models': versions,
+            'note': 'The predictor never sends pump commands. Without an approved model trained on real data it reports unavailable.'}
+
+
+@router.get('/plants/{plant_id}/ml/predictions')
+def ml_predictions(plant_id: str, limit: int = Query(default=50, ge=1, le=500)):
+    get_plant_or_404(plant_id)
+    with db_session() as db:
+        rows = db.execute('SELECT id,created_at,model_version,horizon_min,stress_probability,status FROM ml_predictions WHERE plant_id=? ORDER BY id DESC LIMIT ?', (plant_id, limit)).fetchall()
+    return [dict(r) for r in rows]

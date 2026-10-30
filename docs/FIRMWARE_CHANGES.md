@@ -16,3 +16,10 @@ Based on the newer sensor sketch (`firmware_reference/plant_node_firmware_newer_
 Unchanged limits: no timestamps, no heartbeat except availability, QoS 0 publishing (PubSubClient), no flow sensor, no OTA.
 Hardware advice: 10 k pull-up on the active-low relay input; flyback diode across the pump; fuse the pump supply.
 **Not compiled for ESP32 or run on hardware by the author.** The pure logic (`pump_logic.h`) is tested on a PC.
+
+## Signed commands (optional, `REQUIRE_SIGNED_COMMANDS 1`)
+Backend `COMMAND_SIGNING_KEY` set -> payload `ON:<seconds>:<counter>:<mac16>`; `mac16` = first 16 hex of HMAC-SHA256(key, `<plant_id>|<seconds>|<counter>`).
+The node verifies the MAC (constant-time), requires a strictly larger counter than the last one it accepted (stored in NVS), and **consumes the counter even when the pump refuses** so a captured command can never run later.
+Rejections are acknowledged as `rejected:auth` / `rejected:replay`. The node's own limits (15 s, rest, hourly budget) still apply. The counter is `max(stored+1, unix time)`, so resetting the backend database cannot reuse numbers.
+SHA-256/HMAC are verified against RFC 4231 vectors and against the backend's Python output in `tests/test_signed_command.cpp`.
+Limits: one shared key per deployment (the plant id is inside the MAC); key rotation means re-flashing; it authenticates the sender, it does not encrypt (use TLS for that).

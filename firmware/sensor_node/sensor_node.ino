@@ -24,8 +24,14 @@
 #include <PubSubClient.h>
 #include <DHT.h>
 #include "esp_timer.h"
+#include <Preferences.h>
 #include "pump_logic.h"
+#include "signed_command.h"
 #include "secrets.h"
+
+#ifndef REQUIRE_SIGNED_COMMANDS
+#define REQUIRE_SIGNED_COMMANDS 0   // 1 = accept only "ON:<s>:<counter>:<mac>" signed with COMMAND_KEY (see secrets.h.example)
+#endif
 
 using namespace greetopia;
 
@@ -66,6 +72,8 @@ WiFiClient netClient;
 PubSubClient mqttClient(netClient);
 DHT dht(DHT_PIN, DHTTYPE);
 PumpController pump;
+Preferences prefs;
+uint32_t lastCounter = 0;   // last accepted signed-command counter, persisted in NVS (replay protection survives reboots)
 
 esp_timer_handle_t pumpTimer = nullptr;
 volatile bool pumpTimedOut = false;          // set from the timer task, handled in loop()
@@ -111,7 +119,17 @@ void publishText(const String& topic, const char* text, bool retained = false) {
 void mqttCallback(char* topic, byte* payload, unsigned int length) {
   if (String(topic) != T_CMD) return;
   uint32_t durationMs = 0;
+#if REQUIRE_SIGNED_COMMANDS
+  uint32_t seconds = 0, counter = 0;
+  AuthResult a = verifySigned((const char*)payload, length, PLANT_ID, (const uint8_t*)COMMAND_KEY, strlen(COMMAND_KEY), lastCounter, &seconds, &counter);
+  if (a != AuthResult::Ok) { publishText(T_ACK, a == AuthResult::Replay ? "rejected:replay" : "rejected:auth"); return; }
+  lastCounter = counter;                     // consume the counter even if the pump refuses (a captured command can never run later)
+  prefs.putUInt("cmdctr", counter);
+  char plain[12]; snprintf(plain, sizeof(plain), "ON:%lu", (unsigned long)seconds);
+  CmdStatus s = pump.request(millis(), plain, strlen(plain), &durationMs);
+#else
   CmdStatus s = pump.request(millis(), (const char*)payload, length, &durationMs);
+#endif
   switch (s) {
     case CmdStatus::Accepted: {
       pumpTimedOut = false;
@@ -193,6 +211,8 @@ void setup() {
   delay(500);
   for (int i = 0; i < 3; i++) { pinMode(SOIL_PWR_PINS[i], OUTPUT); digitalWrite(SOIL_PWR_PINS[i], LOW); }
   dht.begin();
+  prefs.begin("greetopia", false);
+  lastCounter = prefs.getUInt("cmdctr", 0);
   if (CALIBRATION_MODE) runCalibrationMode();   // never returns
 
   esp_timer_create_args_t args = {};

@@ -61,6 +61,29 @@ CREATE TABLE IF NOT EXISTS quarantine_messages (
  id INTEGER PRIMARY KEY AUTOINCREMENT, topic TEXT NOT NULL, payload_preview TEXT NOT NULL, reason TEXT NOT NULL, received_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_events_plant_time ON irrigation_events(plant_id, created_at);
+CREATE TABLE IF NOT EXISTS command_counters (plant_id TEXT PRIMARY KEY, counter INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS experiments (
+ id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL UNIQUE, name TEXT NOT NULL, hypothesis TEXT NOT NULL,
+ primary_metrics_json TEXT NOT NULL, analysis_plan TEXT NOT NULL DEFAULT '', seed INTEGER NOT NULL,
+ data_origin TEXT NOT NULL CHECK (data_origin IN ('experimental','simulated')),
+ status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','running','finished')),
+ created_by TEXT, created_at TEXT NOT NULL, started_at TEXT, ended_at TEXT, config_snapshot_json TEXT
+);
+CREATE TABLE IF NOT EXISTS experiment_runs (
+ id INTEGER PRIMARY KEY AUTOINCREMENT, experiment_id INTEGER NOT NULL REFERENCES experiments(id) ON DELETE CASCADE,
+ plant_id TEXT NOT NULL, arm TEXT NOT NULL CHECK (arm IN ('adaptive','fixed_threshold','fixed_schedule')),
+ params_json TEXT NOT NULL DEFAULT '{}', profile_snapshot_json TEXT, UNIQUE (experiment_id, plant_id)
+);
+CREATE TABLE IF NOT EXISTS photo_metrics (
+ photo_id INTEGER PRIMARY KEY, plant_id TEXT NOT NULL, received_at TEXT NOT NULL, green_fraction REAL NOT NULL,
+ mean_exg REAL NOT NULL, brightness REAL NOT NULL, computed_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_photo_metrics_plant ON photo_metrics(plant_id, received_at);
+CREATE TABLE IF NOT EXISTS ml_predictions (
+ id INTEGER PRIMARY KEY AUTOINCREMENT, plant_id TEXT NOT NULL, created_at TEXT NOT NULL, model_version TEXT, feature_version TEXT NOT NULL,
+ horizon_min INTEGER, stress_probability REAL, status TEXT NOT NULL, features_json TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_ml_pred_plant ON ml_predictions(plant_id, created_at);
 """
 
 _initialized = False

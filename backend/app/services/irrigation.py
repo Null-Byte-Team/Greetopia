@@ -12,7 +12,7 @@ from datetime import datetime, timedelta, timezone
 
 from app.core.config import FIRMWARE_MAX_PUMP_S, settings
 from app.db.database import db_session
-from app.services import device_state
+from app.services import device_state, realtime
 from app.services.mqtt_service import publish_water
 
 _lock = threading.Lock()
@@ -80,6 +80,7 @@ def request_watering(plant_id: str, seconds: int, source: str, requested_by: str
             event_id = cur.lastrowid
             if not result["published"]:
                 device_state.add_alert(db, plant_id, "command_not_sent", result["message"])
+    realtime.publish("command", plant_id, {"event_id": event_id, "status": status, "duration_seconds": seconds, "source": source})
     return {"event_id": event_id, "command_id": command_id, "plant_id": plant_id, "duration_seconds": seconds, "status": status,
             "published": result["published"], "topic": result["topic"], "payload": result["payload"], "message": result["message"],
             "estimated_water_ml": estimated, "water_volume_note": "Estimated from a configured flow rate, not measured." if estimated is not None else "Volume unavailable: no calibrated flow rate configured."}

@@ -2191,3 +2191,17 @@ footer > span:nth-child(2) {
 @media(max-width:480px){.auth-card{padding:28px 20px 22px;border-radius:18px}}
 
 .muted-note { margin: 10px 0 0; font-size: 0.85rem; opacity: 0.8; }
+
+/* Insights / experiments / admin views */
+.insights { display: grid; gap: 16px; }
+.ix-toolbar { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; }
+.insights-grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); }
+.ix-card { padding: 16px; overflow-x: auto; }
+.ix-kv { display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; margin: 0; }
+.ix-kv dt { color: var(--text-muted); } .ix-kv dd { margin: 0; font-weight: 600; text-align: end; }
+.ix-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+.ix-table th, .ix-table td { padding: 6px 8px; text-align: start; border-bottom: 1px solid var(--border-subtle); vertical-align: top; }
+.ix-list { padding-inline-start: 18px; margin: 8px 0; font-size: 0.9rem; }
+.ix-form { display: grid; gap: 10px; } .ix-form label { display: grid; gap: 4px; font-size: 0.9rem; }
+.ix-form input, .ix-form textarea, .ix-form select { padding: 8px; border: 1px solid var(--border-input); border-radius: 8px; background: var(--bg-input); color: var(--text-main); }
+.live-badge { font-size: 0.75rem; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border-pill); color: var(--text-pill); }

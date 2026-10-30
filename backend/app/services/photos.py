@@ -11,6 +11,7 @@ from PIL import Image, UnidentifiedImageError
 from app.core.config import settings
 from app.db.database import db_session
 from app.services.auth import sign_photo
+from app.services import cv_metrics
 
 PLANT_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,48}$")
 Image.MAX_IMAGE_PIXELS = settings.max_photo_pixels
@@ -73,8 +74,10 @@ def save_photo(plant_id: str, body: bytes, content_type: str | None):
     (folder / name).write_bytes(body)
     key = f"{plant_id}/{name}"
     with db_session() as db:
-        db.execute("INSERT INTO photos(plant_id,capture_id,file_path,received_at,sha256,width,height,vision_status) VALUES(?,?,?,?,?,?,?,?)",
-                   (plant_id, capture_id, key, now.isoformat(), digest, width, height, "none"))
+        cur = db.execute("INSERT INTO photos(plant_id,capture_id,file_path,received_at,sha256,width,height,vision_status) VALUES(?,?,?,?,?,?,?,?)",
+                         (plant_id, capture_id, key, now.isoformat(), digest, width, height, "none"))
+        photo_id = cur.lastrowid
+    cv_metrics.store(photo_id, plant_id, now.isoformat(), body)  # objective green-area proxy; failures are logged, never fatal
     return {"plant_id": plant_id, "capture_id": capture_id, "received_at": now.isoformat(), "url": photo_url(plant_id, name),
             "width": width, "height": height, "capture_time_source": "server_receive", "duplicate": False}
 

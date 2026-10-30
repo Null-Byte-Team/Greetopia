@@ -18,8 +18,8 @@ from app.api.auth_routes import auth_router
 from app.api.routes import public, router, upload_photo
 from app.core.config import is_serverless, settings, validate_settings
 from app.db.database import db_session, init_db
-from app.services import device_state
-from app.services.decision_engine import evaluate_plant
+from app.services import device_state, insights, realtime
+from app.services.controllers import run_cycle
 from app.services.mqtt_service import mqtt_status, start_mqtt, stop_mqtt
 from app.services.telemetry import prune_old_readings
 
@@ -36,7 +36,7 @@ async def automatic_decision_loop():
                 plants = db.execute("SELECT plant_id FROM plants WHERE mode='auto'").fetchall()
             for row in plants:
                 # Decisions are always logged (advisory); commands are executed only when explicitly enabled.
-                await asyncio.to_thread(evaluate_plant, row['plant_id'], settings.auto_decisions_enabled)
+                await asyncio.to_thread(run_cycle, row['plant_id'], settings.auto_decisions_enabled)
         except Exception:
             log.exception('Automatic decision cycle failed')
         await asyncio.sleep(max(1, settings.decision_interval_minutes) * 60)
@@ -45,12 +45,19 @@ async def automatic_decision_loop():
 async def maintenance_loop():
     """Marks unconfirmed commands and applies age-based retention. Never re-sends a command."""
     last_prune = datetime.min.replace(tzinfo=timezone.utc)
+    last_rules = datetime.min.replace(tzinfo=timezone.utc)
     while True:
         try:
             await asyncio.to_thread(device_state.sweep_unconfirmed)
             if (datetime.now(timezone.utc) - last_prune).total_seconds() > 86400:
                 await asyncio.to_thread(prune_old_readings)
                 last_prune = datetime.now(timezone.utc)
+            if (datetime.now(timezone.utc) - last_rules).total_seconds() > 3600:
+                with db_session() as db:
+                    plant_ids = [r['plant_id'] for r in db.execute('SELECT plant_id FROM plants').fetchall()]
+                for pid in plant_ids:
+                    await asyncio.to_thread(insights.run_alert_rules, pid)
+                last_rules = datetime.now(timezone.utc)
         except Exception:
             log.exception('Maintenance cycle failed')
         await asyncio.sleep(30)
@@ -62,6 +69,7 @@ async def lifespan(app: FastAPI):
     if is_serverless:
         log.error('Serverless runtime detected: MQTT, the scheduler and SQLite persistence will NOT work. Deploy as a long-running service.')
     init_db()
+    realtime.bind_loop(asyncio.get_running_loop())
     start_mqtt()
     tasks = [asyncio.create_task(automatic_decision_loop()), asyncio.create_task(maintenance_loop())]
     try:

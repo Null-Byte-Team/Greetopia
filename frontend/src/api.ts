@@ -32,6 +32,11 @@ try {
 
 export const API_ORIGIN = API.startsWith('http') ? API.replace(/\/api\/v1\/?$/, '') : '';
 export const apiConfigError = configError;
+export function wsUrl(): string {
+  const base = API.startsWith('http') ? API : `${window.location.origin}${API}`;
+  return base.replace(/^http/i, 'ws').replace(/\/+$/, '') + '/ws';
+}
+
 export const UNAUTHORIZED_EVENT = 'greetopia-unauthorized';
 
 function errorMessage(body: any, fallback: string): string {
@@ -80,4 +85,27 @@ export const api = {
   analyzePhoto: (id: string) => request<any>(`/plants/${id}/photos/analyze`, { method: 'POST' }),
   diary: (id: string) => request<any[]>(`/plants/${id}/diary`),
   generateDiary: (id: string) => request<any>(`/plants/${id}/diary/generate`, { method: 'POST' }),
+  series: (id: string, metric: string, limit = 360) => request<any[]>(`/plants/${id}/readings/history?metric=${metric}&limit=${limit}`),
+  alerts: (id: string) => request<any[]>(`/plants/${id}/alerts?limit=10`),
+  insights: (id: string, days: number) => request<any>(`/plants/${id}/insights/summary?days=${days}`),
+  weekly: (id: string, lang: string) => request<any>(`/plants/${id}/insights/weekly?lang=${lang}`),
+  growth: (id: string, days: number) => request<any>(`/plants/${id}/insights/growth?days=${days}`),
+  mlStatus: (id: string) => request<any>(`/plants/${id}/ml/status`),
+  experiments: () => request<any[]>('/experiments'),
+  experiment: (key: string) => request<any>(`/experiments/${key}`),
+  createExperiment: (body: any) => request<any>('/experiments', { method: 'POST', body: JSON.stringify(body) }),
+  startExperiment: (key: string) => request<any>(`/experiments/${key}/start`, { method: 'POST' }),
+  stopExperiment: (key: string) => request<any>(`/experiments/${key}/stop`, { method: 'POST' }),
+  experimentResults: (key: string) => request<any>(`/experiments/${key}/results`),
+  users: () => request<any[]>('/auth/users'),
+  setRole: (id: number, role: string) => request<any>(`/auth/users/${id}/role`, { method: 'PATCH', body: JSON.stringify({ role }) }),
+  downloadExperiment: async (key: string) => {
+    const token = localStorage.getItem('greetopia_token');
+    const r = await fetch(`${API}/experiments/${key}/export.zip`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+    if (!r.ok) throw new Error('Export failed');
+    const url = URL.createObjectURL(await r.blob());
+    const a = document.createElement('a');
+    a.href = url; a.download = `${key}.zip`; a.click();
+    URL.revokeObjectURL(url);
+  },
 };

@@ -33,6 +33,7 @@ class Settings(BaseSettings):
     google_client_id: str = "355615741600-5tfd5st7gr7ihnl81k78794u853u32qc.apps.googleusercontent.com"
     admin_emails: str = ""  # comma separated; always admin
     operator_emails: str = ""  # comma separated; may control pumps. First registered user becomes admin.
+    command_signing_key: str = ""  # optional: HMAC-signs pump commands ("ON:<s>:<counter>:<mac>"); the node verifies and rejects replays
     device_upload_token: str = ""  # shared secret for ESP32 nodes (X-Device-Token)
     allow_insecure_devices: bool = False  # dev only: accept device calls without a token
     photo_url_ttl_s: int = 3600
@@ -88,6 +89,8 @@ class Settings(BaseSettings):
     auto_vision_analysis: bool = False
     ai_rate_limit_per_minute: int = 10
     plant_profiles_path: str = "data/plant_profiles.json"
+    model_dir: str = "storage/models"
+    ml_horizon_minutes: int = 60
     openweather_api_key: str = ""
     openweather_lat: float | None = None
     openweather_lon: float | None = None

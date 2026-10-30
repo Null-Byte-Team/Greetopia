@@ -8,10 +8,13 @@
 
 Upgrade: existing SQLite databases are migrated automatically (new columns/tables). Existing users keep their password hashes but become read-only `viewer`s (the role column is new): set `ADMIN_EMAILS` before the first start so someone can control the pump and promote others.
 
-## 2026-10-20 verification attempt
 
-- Reviewed the project architecture, decision rules, firmware contract/change notes, security notes, bench procedure, source audit, and the v2 sketches plus their reference origins. Existing code includes MQTT worker-queue ingestion, command acknowledgement/status reconciliation, retained offline availability handling, and an ACL that grants the node no write access to pump commands.
-- Tooling observed: Arduino CLI 1.5.1, Arduino-ESP32 core 3.3.12, and the required sensor-node libraries are installed. The ESP32 Dev Module (`esp32:esp32:esp32`) and AI Thinker ESP32-CAM (`esp32:esp32:esp32cam`) FQBNs are present.
-- **Not verified:** neither firmware compile result was obtainable: Arduino CLI commands returned no output through the available terminal channel, including when run with absolute sketch paths. No source-level compatibility fix was made without compiler diagnostics.
-- Docker CLI 29.7.2 and Compose 5.5.0 are installed, but Docker Engine is unavailable (`docker info` could not connect to `dockerDesktopLinuxEngine`). Therefore the Mosquitto-container integration test and `docker compose build` were not run. No new integration test was added because it could not be executed here.
-- Backend test dependencies are not installed in the selected Python interpreter, and the terminal did not provide an observable result for the retry from the backend directory; backend tests were not run. The claimed 105-test baseline was not independently re-verified in this session.
+# Second pass: features and verification
+
+**Added (all with automated tests):** WebSocket live updates (`/api/v1/ws`, first-message auth, bounded queues, resync on overflow, client re-fetch on reconnect); data-driven insights (`docs/INSIGHTS.md`); randomised A/B experiment engine with fixed-schedule / fixed-threshold control arms, exact/asymptotic Mann-Whitney, bootstrap CI, report + zip export (`docs/EXPERIMENTS.md`); camera green-area growth proxy; ML stress-predictor pipeline with registry, checksum-verified loading and refusal to approve unless it beats a baseline (`docs/ML.md`); optional HMAC-signed pump commands with replay protection (backend + firmware logic); dashboard charts, Insights / Experiments / Users views, live badge; CI workflow; real-Mosquitto integration test (ACL, last-will, exact `ON:5`, reconciliation).
+
+**Bugs found and fixed by those tests:** pandas 3 stores timestamps in microseconds (`asi8` mismatch would have corrupted labels and the "minutes since watering" feature); inference used the still-filling 10-minute bin; a gray-world colour correction erased the green signal in leaf-dominated photos.
+
+**Verified here:** backend `pytest` (see README for the count), real broker round trip, firmware logic and SHA-256/HMAC (RFC 4231 + backend cross-check) on a PC with `g++ -Werror`, frontend `tsc` + Vite build, chart maths against the backend VPD.
+
+**NOT verified / not done:** ESP32 compilation and hardware runs (CI job `firmware-compile` exists but has not been executed); browser rendering of the new views (build only); Docker image builds; Google sign-in; Gemini/OpenWeather live calls; PostgreSQL/SQLAlchemy/Alembic migration (still SQLite); flow-sensor, OTA, NTP/store-and-forward, Telegram alerts, offline PWA, multi-user plant ownership; per-photo "apparent stress threshold" learning; no real experiment data exists yet, so no result of any kind is claimed.

@@ -28,3 +28,12 @@ Roles: `viewer` (read) < `operator` (control pump, edit plants, run AI) < `admin
 Event `status` values: `published` -> `acknowledged` (new firmware) -> `observed_watering` -> `confirmed`;
 `failed_publish`, `rejected`, `unconfirmed` (never seen `watering`; **never retried automatically**), `unconfirmed_end`, `unrequested`.
 `published` means the broker accepted the command, not that the pump ran.
+
+## Added endpoints
+| Method | Endpoint | Access | Purpose |
+|---|---|---|---|
+| WS | `/ws` | signed-in (first message `{"type":"auth","token":...}`) | Live `reading`, `pump`, `command`, `decision`, `alert` events with `seq`; `resync` on overflow |
+| GET | `/plants/{id}/insights/summary?days=1..30`, `/insights/weekly?lang=en|ar`, `/insights/growth` | user | Derived analytics (see docs/INSIGHTS.md) |
+| POST | `/plants/{id}/insights/growth/backfill` | operator | Analyse stored photos |
+| GET | `/plants/{id}/ml/status`, `/ml/predictions` | user | Predictor state (unavailable without an approved model) |
+| POST/GET | `/experiments`, `/experiments/{key}`, `/start`, `/stop`, `/results`, `/report.md`, `/export.zip` | operator (write) / user (read) | Randomised experiments |

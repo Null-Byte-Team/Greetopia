@@ -20,7 +20,7 @@ from typing import Any
 
 from app.core.config import FIRMWARE_MAX_PUMP_S, settings
 from app.db.database import db_session
-from app.services import device_state
+from app.services import device_state, realtime
 from app.services.irrigation import CommandRejected, daily_usage, request_watering
 from app.services.telemetry import latest_readings, root_trend_pct_per_hour
 from app.services.vpd import calculate_vpd, vpd_band
@@ -219,7 +219,13 @@ def gather_inputs(plant_id: str, plant: dict, now: datetime) -> tuple[Inputs, di
     pump_age = None
     if dev and dev["pump_observed_at"]:
         pump_age = (now - datetime.fromisoformat(dev["pump_observed_at"])).total_seconds()
+    try:
+        from app.ml.inference import cached_probability
+        ml_p = cached_probability(plant_id)
+    except Exception:
+        ml_p = None
     return Inputs(
+        ml_stress_probability=ml_p,
         mode=plant["mode"], low_pct=float(low), target_pct=float(high),
         root=root["value"] if root else None, root_age_s=root["age_seconds"] if root else None,
         mid=mid["value"] if mid and mid["fresh"] else None, surface=surf["value"] if surf and surf["fresh"] else None,
@@ -259,6 +265,7 @@ def evaluate_plant(plant_id: str, execute: bool = False, requested_by: str = "en
                    (plant_id, now.isoformat(), "auto", decision.action, " ".join(reasons), json.dumps(readings), inputs.vpd_kpa,
                     json.dumps(weather), None, event["command_id"] if event else None, ENGINE_VERSION, decision.duration_s,
                     int(executed), json.dumps(asdict(inputs))))
+    realtime.publish("decision", plant_id, {"decision": decision.action, "code": decision.code, "duration_seconds": decision.duration_s, "executed": executed})
     return {"plant_id": plant_id, "created_at": now.isoformat(), "decision": decision.action, "code": decision.code,
             "should_water": decision.action == "water", "duration_seconds": decision.duration_s, "executed": executed,
             "command_published": executed, "reason": " ".join(reasons), "reasons": reasons, "readings": readings,

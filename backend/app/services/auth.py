@@ -157,6 +157,20 @@ def _bearer(authorization: Optional[str]) -> str:
     return authorization.removeprefix("Bearer ").strip()
 
 
+def user_from_token(token: str) -> Optional[dict]:
+    payload = decode_access_token(token)
+    if not payload:
+        return None
+    with db_session() as db:
+        ensure_users_table(db)
+        row = db.execute("SELECT * FROM users WHERE id = ?", (int(payload["sub"]),)).fetchone()
+    if not row:
+        return None
+    user = dict(row)
+    user["role"] = effective_role(user["email"], user.get("role", "viewer"))
+    return user
+
+
 def current_user(authorization: Optional[str] = Header(default=None)) -> dict:
     payload = decode_access_token(_bearer(authorization))
     if not payload:
