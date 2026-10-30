@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import logging
 import os
 from pathlib import Path
@@ -101,9 +99,8 @@ class Settings(BaseSettings):
     def cors_list(self) -> list[str]:
         origins = [x.strip() for x in self.cors_origins.split(",") if x.strip()]
         if "*" in origins:
-            # Allow all origins (development/open API); log a warning but don't strip it
-            log.warning("CORS wildcard (*) in CORS_ORIGINS – all origins allowed. Set explicit origins in production.")
-            return ["*"]
+            log.warning("CORS wildcard ignored; list explicit origins in CORS_ORIGINS")
+            origins = [o for o in origins if o != "*"]
         return origins
 
     @property
