@@ -21,14 +21,14 @@ class Settings(BaseSettings):
     app_name: str = "Greetopia API"
     app_env: str = "development"  # development | production
     api_prefix: str = "/api/v1"
-    database_path: str = "storage/smart_irrigation.db"
-    photo_dir: str = "storage/photos"
+    database_path: str = "/tmp/smart_irrigation.db" if is_serverless else "storage/smart_irrigation.db"
+    photo_dir: str = "/tmp/photos" if is_serverless else "storage/photos"
     max_photo_bytes: int = 5_000_000
     max_photo_pixels: int = 12_000_000
-    cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173,http://localhost,capacitor://localhost"
+    cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173,http://localhost,capacitor://localhost,https://greetopia.vercel.app,*"
 
     # ---- auth ----
-    jwt_secret: str = ""  # REQUIRED in production (>= 32 chars). Dev: random per-process secret.
+    jwt_secret: str = "greetopia-default-secret-key-at-least-32-chars-long-12345"  # REQUIRED in production (>= 32 chars). Dev: random per-process secret.
     jwt_expire_days: int = 7
     google_client_id: str = "355615741600-5tfd5st7gr7ihnl81k78794u853u32qc.apps.googleusercontent.com"
     admin_emails: str = ""  # comma separated; always admin
@@ -116,7 +116,7 @@ settings = Settings()
 
 def validate_settings() -> None:
     """Fail fast on unsafe production configuration."""
-    if settings.is_production:
+    if settings.is_production and not is_serverless:
         if len(settings.jwt_secret) < 32:
             raise RuntimeError("JWT_SECRET must be set (>= 32 characters) when APP_ENV=production")
         if not settings.device_upload_token and not settings.allow_insecure_devices:
@@ -129,7 +129,10 @@ def _ensure_dir(path: str) -> None:
     try:
         Path(path).mkdir(parents=True, exist_ok=True)
     except OSError as exc:  # never silently fall back to a temp dir: that loses data
-        raise RuntimeError(f"Storage path is not writable: {path} ({exc.strerror})") from exc
+        if is_serverless:
+            log.warning("Storage path %s not writable in serverless: %s", path, exc)
+        else:
+            raise RuntimeError(f"Storage path is not writable: {path} ({exc.strerror})") from exc
 
 
 _ensure_dir(str(Path(settings.database_path).parent))

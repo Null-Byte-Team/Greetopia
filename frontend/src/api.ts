@@ -64,6 +64,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     }
     throw new Error(errorMessage(body, 'Request failed'));
   }
+  const contentType = r.headers.get('content-type') || '';
+  if (!contentType.includes('application/json')) {
+    throw new Error('Backend service unreachable or returned HTML instead of JSON. Ensure your API is running and routed properly.');
+  }
   return r.json();
 }
 
