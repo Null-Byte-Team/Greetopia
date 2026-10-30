@@ -2,6 +2,15 @@
 comparison with a persistence baseline, no synthetic or invented results. Raises InsufficientData instead of training on too little."""
 from __future__ import annotations
 
+import numpy as np
+import pandas as pd
+from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import brier_score_loss, f1_score, precision_score, recall_score, roc_auc_score
+from sklearn.model_selection import TimeSeriesSplit
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import StandardScaler
+
 from app.ml import registry
 from app.ml.dataset import BIN_MIN, FEATURE_VERSION, FEATURES, InsufficientData, build_dataset, dataset_fingerprint
 from app.services.insights import plant_profile
@@ -11,8 +20,6 @@ MIN_ROWS, MIN_TRAIN_POS, MIN_TEST_POS, BASELINE_MARGIN = 500, 30, 10, 5.0
 
 def chrono_split(data: pd.DataFrame, horizon_min: int):
     """60/20/20 by TIME with a purge gap of `horizon_min` between sets so label windows never overlap across the boundary."""
-    import numpy as np  # lazy
-    import pandas as pd  # lazy
     times = np.sort(data.index.unique())
     n = len(times)
     t1, t2 = times[int(n * 0.6)], times[int(n * 0.8)]
@@ -20,15 +27,12 @@ def chrono_split(data: pd.DataFrame, horizon_min: int):
     return data[data.index < t1 - gap], data[(data.index >= t1) & (data.index < t2 - gap)], data[data.index >= t2]
 
 
-def baseline_score(df: pd.DataFrame, low: float) -> "np.ndarray":
+def baseline_score(df: pd.DataFrame, low: float) -> np.ndarray:
     """Persistence rule: the lower the current root moisture relative to low+margin, the higher the stress score (clipped to 0..1)."""
-    import numpy as np  # lazy
     return np.clip((low + BASELINE_MARGIN - df["root"].values) / BASELINE_MARGIN, 0, 1)
 
 
 def metrics(y, p, threshold=0.5) -> dict:
-    import numpy as np  # lazy
-    from sklearn.metrics import brier_score_loss, f1_score, precision_score, recall_score, roc_auc_score  # lazy
     y, p = np.asarray(y), np.asarray(p)
     pred = (p >= threshold).astype(int)
     out = {"n": int(len(y)), "positives": int(y.sum()), "threshold": round(float(threshold), 3),
@@ -45,16 +49,10 @@ def metrics(y, p, threshold=0.5) -> dict:
 
 
 def best_threshold(y, p) -> float:
-    import numpy as np  # lazy
-    from sklearn.metrics import f1_score  # lazy
     return float(max(np.linspace(0.1, 0.9, 17), key=lambda t: f1_score(y, (np.asarray(p) >= t).astype(int), zero_division=0)))
 
 
 def candidate_models():
-    from sklearn.ensemble import GradientBoostingClassifier  # lazy
-    from sklearn.linear_model import LogisticRegression  # lazy
-    from sklearn.pipeline import make_pipeline  # lazy
-    from sklearn.preprocessing import StandardScaler  # lazy
     return {"logistic": make_pipeline(StandardScaler(), LogisticRegression(max_iter=500, class_weight="balanced")),
             "gboost": GradientBoostingClassifier(n_estimators=120, max_depth=3, random_state=0)}
 

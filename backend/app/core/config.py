@@ -134,14 +134,14 @@ settings = Settings()
 
 
 def validate_settings() -> None:
-    """Safe configuration checks that log warnings rather than crashing."""
+    """Fail fast on unsafe production configuration."""
     if settings.is_production and not is_serverless:
         if len(settings.jwt_secret) < 32:
-            log.warning("JWT_SECRET should be set (>= 32 characters) when APP_ENV=production")
+            raise RuntimeError("JWT_SECRET must be set (>= 32 characters) when APP_ENV=production")
         if not settings.device_upload_token and not settings.allow_insecure_devices:
-            log.warning("DEVICE_UPLOAD_TOKEN is not set when APP_ENV=production")
+            raise RuntimeError("DEVICE_UPLOAD_TOKEN must be set when APP_ENV=production")
         if settings.allow_insecure_devices:
-            log.warning("ALLOW_INSECURE_DEVICES is enabled in production")
+            raise RuntimeError("ALLOW_INSECURE_DEVICES is not permitted when APP_ENV=production")
 
 
 def _ensure_dir(path: str) -> None:

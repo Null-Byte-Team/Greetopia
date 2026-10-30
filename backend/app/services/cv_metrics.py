@@ -10,6 +10,7 @@ import io
 import logging
 from datetime import datetime, timedelta, timezone
 
+import numpy as np
 from PIL import Image
 
 from app.db.database import db_session

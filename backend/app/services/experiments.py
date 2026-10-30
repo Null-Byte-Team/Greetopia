@@ -15,6 +15,8 @@ import re
 import zipfile
 from datetime import datetime, timezone
 
+import numpy as np
+
 from app.core.config import settings
 from app.db.database import db_session
 from app.services import insights
@@ -164,7 +166,6 @@ def growth_proxy(plant_id: str, start_at: datetime, end_at: datetime, min_photos
                           (plant_id, start_at.isoformat(), end_at.isoformat())).fetchall()
     if len(rows) < min_photos:
         return None
-    import numpy as np  # lazy
     t0 = datetime.fromisoformat(rows[0]["received_at"])
     xs = np.array([(datetime.fromisoformat(r["received_at"]) - t0).total_seconds() / 86400 for r in rows])
     if xs[-1] < 2:
