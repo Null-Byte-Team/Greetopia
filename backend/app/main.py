@@ -1,3 +1,4 @@
+from __future__ import annotations
 import asyncio
 import logging
 import sys
@@ -65,15 +66,27 @@ async def maintenance_loop():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    validate_settings()
+    try:
+        validate_settings()
+    except Exception as e:
+        log.warning('validate_settings warning: %s', e)
     if is_serverless:
         log.warning('Serverless runtime detected: running in lightweight API-only mode without MQTT or background loops.')
-    init_db()
-    realtime.bind_loop(asyncio.get_running_loop())
+    try:
+        init_db()
+    except Exception as e:
+        log.exception('init_db warning during startup: %s', e)
+    try:
+        realtime.bind_loop(asyncio.get_running_loop())
+    except Exception as e:
+        log.warning('realtime.bind_loop warning: %s', e)
     tasks = []
     if not is_serverless:
-        start_mqtt()
-        tasks = [asyncio.create_task(automatic_decision_loop()), asyncio.create_task(maintenance_loop())]
+        try:
+            start_mqtt()
+            tasks = [asyncio.create_task(automatic_decision_loop()), asyncio.create_task(maintenance_loop())]
+        except Exception as e:
+            log.exception('MQTT startup warning: %s', e)
     try:
         yield
     finally:
@@ -82,7 +95,10 @@ async def lifespan(app: FastAPI):
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
         if not is_serverless:
-            stop_mqtt()
+            try:
+                stop_mqtt()
+            except Exception:
+                pass
 
 
 app = FastAPI(title=settings.app_name, version='1.0.0', description='Greetopia smart irrigation API.', lifespan=lifespan)

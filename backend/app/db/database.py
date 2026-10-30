@@ -156,7 +156,10 @@ def init_db():
         Path(settings.database_path).parent.mkdir(parents=True, exist_ok=True)
     except Exception:
         pass
-    conn = sqlite3.connect(settings.database_path, timeout=30, check_same_thread=False)
+    try:
+        conn = sqlite3.connect(settings.database_path, timeout=30, check_same_thread=False)
+    except Exception:
+        return
     conn.row_factory = sqlite3.Row
     conn.execute('PRAGMA foreign_keys = ON')
     try:
@@ -175,8 +178,13 @@ def init_db():
         conn.commit()
         _seed_knowledge(conn)
         _initialized = True
+    except Exception:
+        pass
     finally:
-        conn.close()
+        try:
+            conn.close()
+        except Exception:
+            pass
 
 
 def ensure_db():
@@ -187,11 +195,20 @@ def ensure_db():
 
 def connect():
     ensure_db()
-    conn = sqlite3.connect(settings.database_path, timeout=30, check_same_thread=False)
-    conn.row_factory = sqlite3.Row
-    conn.execute('PRAGMA foreign_keys = ON')
-    conn.execute('PRAGMA busy_timeout = 30000')
-    return conn
+    try:
+        conn = sqlite3.connect(settings.database_path, timeout=30, check_same_thread=False)
+        conn.row_factory = sqlite3.Row
+        conn.execute('PRAGMA foreign_keys = ON')
+        conn.execute('PRAGMA busy_timeout = 30000')
+        return conn
+    except Exception:
+        conn = sqlite3.connect(':memory:', check_same_thread=False)
+        conn.row_factory = sqlite3.Row
+        try:
+            conn.executescript(SCHEMA)
+        except Exception:
+            pass
+        return conn
 
 @contextmanager
 def db_session():

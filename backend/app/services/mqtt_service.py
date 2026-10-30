@@ -6,6 +6,7 @@
 - Retained messages are ignored for telemetry (stale by definition) but honoured for availability (last-will).
 - Public test brokers are refused unless MQTT_DEV_PUBLIC_BROKER=true.
 """
+from __future__ import annotations
 import logging
 import queue
 import ssl

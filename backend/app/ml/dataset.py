@@ -8,9 +8,6 @@ from __future__ import annotations
 
 import hashlib
 
-import numpy as np
-import pandas as pd
-
 from app.db.database import db_session
 from app.services.vpd import calculate_vpd
 
@@ -26,6 +23,7 @@ class InsufficientData(Exception):
 
 
 def load_bins(plant_id: str) -> pd.DataFrame:
+    import pandas as pd  # lazy
     with db_session() as db:
         rows = db.execute("SELECT metric,value,received_at FROM readings WHERE plant_id=? AND metric IN ('soil_root','soil_mid','soil_surface','temperature_c','humidity_pct')", (plant_id,)).fetchall()
     if not rows:
@@ -42,6 +40,7 @@ def load_bins(plant_id: str) -> pd.DataFrame:
 
 
 def watering_times(plant_id: str) -> list[pd.Timestamp]:
+    import pandas as pd  # lazy
     with db_session() as db:
         rows = db.execute("SELECT observed_start_at FROM irrigation_events WHERE plant_id=? AND status='confirmed' AND observed_start_at IS NOT NULL", (plant_id,)).fetchall()
     out = []
@@ -53,6 +52,8 @@ def watering_times(plant_id: str) -> list[pd.Timestamp]:
 
 def build_features(bins: pd.DataFrame, waterings: list[pd.Timestamp]) -> pd.DataFrame:
     """Features at bin t depend ONLY on bins <= t (and waterings <= t)."""
+    import numpy as np  # lazy
+    import pandas as pd  # lazy
     f = pd.DataFrame(index=bins.index)
     f["root"], f["mid"], f["surface"], f["temp"], f["hum"] = bins["root"], bins["mid"], bins["surface"], bins["temp"], bins["hum"]
     f["vpd"] = [calculate_vpd(t, h) if pd.notna(t) and pd.notna(h) else np.nan for t, h in zip(bins["temp"], bins["hum"])]
@@ -76,6 +77,8 @@ def build_features(bins: pd.DataFrame, waterings: list[pd.Timestamp]) -> pd.Data
 
 def build_labels(bins: pd.DataFrame, low: float, horizon_min: int, waterings: list[pd.Timestamp], exclude_watered: bool = True) -> pd.Series:
     """y[t] = 1 if min(root[t+1 .. t+H]) < low. NaN when the future window is incomplete (or watered, if exclude_watered)."""
+    import numpy as np  # lazy
+    import pandas as pd  # lazy
     h = horizon_min // BIN_MIN
     root = bins["root"]
     fut = pd.concat([root.shift(-k) for k in range(1, h + 1)], axis=1)
@@ -92,6 +95,7 @@ def build_labels(bins: pd.DataFrame, low: float, horizon_min: int, waterings: li
 
 
 def build_dataset(plant_ids: list[str], horizon_min: int, lows: dict[str, float], exclude_watered: bool = True) -> pd.DataFrame:
+    import pandas as pd  # lazy
     parts = []
     for pid in plant_ids:
         bins = load_bins(pid)
@@ -107,6 +111,7 @@ def build_dataset(plant_ids: list[str], horizon_min: int, lows: dict[str, float]
 
 
 def dataset_fingerprint(data: pd.DataFrame) -> dict:
+    import pandas as pd  # lazy
     h = hashlib.sha256(pd.util.hash_pandas_object(data.drop(columns=["plant_id"]), index=True).values.tobytes()).hexdigest()
     return {"rows": int(len(data)), "positives": int(data["y"].sum()), "start": data.index.min().isoformat(), "end": data.index.max().isoformat(),
             "sha256": h, "plants": sorted(data["plant_id"].unique().tolist()), "provenance": "device readings and confirmed irrigation events from the Greetopia database"}
