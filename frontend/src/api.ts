@@ -74,6 +74,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export const api = {
   health: () => request<any>('/health'),
   authMe: () => request<any>('/auth/me'),
+  guestAuth: () => request<any>('/auth/guest', { method: 'POST' }),
   plants: () => request<any[]>('/plants'),
   plantKnowledge: (q: string) => request<any>(`/plant-knowledge?q=${encodeURIComponent(q)}&limit=8`),
   overview: (id: string) => request<any>(`/plants/${id}/overview`),

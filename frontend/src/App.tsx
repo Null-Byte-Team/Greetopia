@@ -8,7 +8,7 @@ import {
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { api, UNAUTHORIZED_EVENT, apiConfigError, API_ORIGIN } from './api';
 import { translations, Language, Theme } from './i18n';
-import SignInPage from './SignInPage';
+import SplashScreen from './SplashScreen';
 import Insights from './Insights';
 import Experiments from './Experiments';
 import Admin from './Admin';
@@ -88,7 +88,7 @@ function App() {
   const toggleTheme = () => setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
   const toggleLang = () => setLang(prev => (prev === 'en' ? 'ar' : 'en'));
 
-  // User Auth State
+  // User Auth & Splash State
   const [user, setUser] = useState<any>(() => {
     try {
       const raw = localStorage.getItem('greetopia_user');
@@ -98,48 +98,14 @@ function App() {
     }
   });
   const [showUserDropdown, setShowUserDropdown] = useState(false);
-  const [forceShowSignIn, setForceShowSignIn] = useState(false);
+  const [splashActive, setSplashActive] = useState(true);
+  const [splashFading, setSplashFading] = useState(false);
+  const [splashStatus, setSplashStatus] = useState('');
 
-  useEffect(() => {
-    const onUnauthorized = () => {
-      localStorage.removeItem('greetopia_token');
-      localStorage.removeItem('greetopia_user');
-      setUser(null);
-      setForceShowSignIn(true);
-    };
-    window.addEventListener(UNAUTHORIZED_EVENT, onUnauthorized);
-    const token = localStorage.getItem('greetopia_token');
-    if (token) {
-      api.authMe()
-        .then(u => {
-          setUser(u);
-          localStorage.setItem('greetopia_user', JSON.stringify(u));
-          localStorage.setItem('greetopia_remember', 'true');
-        })
-        .catch(err => {
-          // Keep cached user session! Never wipe login state on cold boot or network hiccups.
-          console.warn('Background session refresh notice:', err);
-        });
-    }
-    return () => window.removeEventListener(UNAUTHORIZED_EVENT, onUnauthorized);
-  }, []);
-
-  const handleAuth = (token: string, authedUser: any) => {
-    localStorage.setItem('greetopia_token', token);
-    localStorage.setItem('greetopia_user', JSON.stringify(authedUser));
-    localStorage.setItem('greetopia_remember', 'true');
-    setUser(authedUser);
-    setForceShowSignIn(false);
-    load();
-  };
-
-  const handleSignOut = () => {
+  const handleResetSession = () => {
     localStorage.removeItem('greetopia_token');
     localStorage.removeItem('greetopia_user');
-    localStorage.removeItem('greetopia_remember');
-    setUser(null);
-    setShowUserDropdown(false);
-    setForceShowSignIn(true);
+    window.location.reload();
   };
 
   // Core App State
@@ -202,13 +168,80 @@ function App() {
     }
   }, [plantId]);
 
+  // Boot & Auto-Auth Flow with Splash Screen
   useEffect(() => {
-    // Do not poll when no user is authenticated – avoids flooding 401s on the sign-in screen
-    if (!user) return;
-    load();
-    const timer = setInterval(load, live ? 60000 : 15000); // polling is only a safety net while the WebSocket is connected
+    let isMounted = true;
+
+    const onUnauthorized = async () => {
+      try {
+        const guest = await api.guestAuth();
+        if (!isMounted) return;
+        localStorage.setItem('greetopia_token', guest.token);
+        localStorage.setItem('greetopia_user', JSON.stringify(guest.user));
+        setUser(guest.user);
+        load();
+      } catch (err) {
+        console.warn('Auto guest login failed:', err);
+      }
+    };
+    window.addEventListener(UNAUTHORIZED_EVENT, onUnauthorized);
+
+    async function boot() {
+      const token = localStorage.getItem('greetopia_token');
+      let authed = false;
+      if (token) {
+        try {
+          setSplashStatus(lang === 'ar' ? 'جاري التحقق من الاتصال...' : 'Connecting to garden sensors...');
+          const u = await api.authMe();
+          if (isMounted) {
+            setUser(u);
+            localStorage.setItem('greetopia_user', JSON.stringify(u));
+            authed = true;
+          }
+        } catch {
+          // Token expired or invalid, fall back to guest
+        }
+      }
+      if (!authed) {
+        try {
+          setSplashStatus(lang === 'ar' ? 'جاري تهيئة الجلسة السريعة...' : 'Starting guest session...');
+          const guest = await api.guestAuth();
+          if (isMounted) {
+            localStorage.setItem('greetopia_token', guest.token);
+            localStorage.setItem('greetopia_user', JSON.stringify(guest.user));
+            setUser(guest.user);
+          }
+        } catch (err) {
+          console.warn('Guest login error:', err);
+        }
+      }
+
+      setSplashStatus(lang === 'ar' ? 'جاري تحميل بيانات النباتات...' : 'Loading plant telemetry...');
+      await load();
+
+      // Ensure splash is visible for smooth aesthetic experience
+      setTimeout(() => {
+        if (!isMounted) return;
+        setSplashFading(true);
+        setTimeout(() => {
+          if (isMounted) setSplashActive(false);
+        }, 450);
+      }, 1200);
+    }
+
+    boot();
+
+    return () => {
+      isMounted = false;
+      window.removeEventListener(UNAUTHORIZED_EVENT, onUnauthorized);
+    };
+  }, [load, lang]);
+
+  useEffect(() => {
+    if (!user || splashActive) return;
+    const timer = setInterval(load, live ? 60000 : 15000);
     return () => clearInterval(timer);
-  }, [load, live, user]);
+  }, [load, live, user, splashActive]);
 
   useLive(
     !!user,
@@ -449,21 +482,18 @@ function App() {
     return <div role="alert" style={{ padding: 24 }}>{apiConfigError}</div>;
   }
 
-  if (forceShowSignIn || !user) {
-    return (
-      <SignInPage
-        t={t}
-        theme={theme}
-        lang={lang}
-        onAuth={handleAuth}
-        toggleTheme={toggleTheme}
-        toggleLang={toggleLang}
-      />
-    );
-  }
-
   return (
-    <div className="app-shell">
+    <>
+      {splashActive && (
+        <SplashScreen
+          t={t}
+          theme={theme}
+          lang={lang}
+          fading={splashFading}
+          status={splashStatus}
+        />
+      )}
+      <div className="app-shell">
       {/* Sidebar Navigation */}
       <aside className="sidebar">
         <div className="brand">
@@ -569,7 +599,7 @@ function App() {
               <RefreshCw size={17} />
             </button>
 
-            {user && user.provider !== 'guest' ? (
+            {user ? (
               <div style={{ position: 'relative' }}>
                 <button
                   className="user-avatar-btn"
@@ -581,34 +611,25 @@ function App() {
                     <img className="user-avatar-img" src={user.avatar_url} alt={user.name || 'User'} />
                   ) : (
                     <div className="user-avatar-fallback">
-                      {user.name ? user.name[0].toUpperCase() : 'U'}
+                      {user.name ? user.name[0].toUpperCase() : 'G'}
                     </div>
                   )}
-                  <span className="user-avatar-name">{user.name || 'User'}</span>
+                  <span className="user-avatar-name">{user.name || (lang === 'ar' ? 'زائر' : 'Guest')}</span>
                   <ChevronDown size={13} style={{ opacity: 0.6 }} />
                 </button>
                 {showUserDropdown && (
                   <div className="user-dropdown">
                     <div className="user-dropdown-header">
-                      <strong>{user.name || 'User'}</strong>
-                      <small>{user.email}</small>
+                      <strong>{user.name || (lang === 'ar' ? 'مستخدم زائر' : 'Guest User')}</strong>
+                      <small>{user.email || 'guest@greetopia.local'}</small>
                     </div>
-                    <button className="user-dropdown-item danger" type="button" onClick={handleSignOut}>
-                      <LogOut size={14} /> {t.sign_out}
+                    <button className="user-dropdown-item danger" type="button" onClick={handleResetSession}>
+                      <RefreshCw size={14} /> {lang === 'ar' ? 'إعادة تشغيل الجلسة' : 'Restart Session'}
                     </button>
                   </div>
                 )}
               </div>
-            ) : (
-              <button
-                className="primary-btn"
-                style={{ height: 35, padding: '0 12px', fontSize: 11 }}
-                type="button"
-                onClick={() => setForceShowSignIn(true)}
-              >
-                {t.btn_signin}
-              </button>
-            )}
+            ) : null}
           </div>
         </header>
 
@@ -1282,6 +1303,7 @@ function App() {
         </div>
       )}
     </div>
+    </>
   );
 }
 

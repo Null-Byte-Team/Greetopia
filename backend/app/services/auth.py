@@ -164,6 +164,13 @@ def user_from_token(token: str) -> Optional[dict]:
     with db_session() as db:
         ensure_users_table(db)
         row = db.execute("SELECT * FROM users WHERE id = ?", (int(payload["sub"]),)).fetchone()
+        if not row and payload.get("email") == "guest@greetopia.local":
+            now = datetime.now(timezone.utc).isoformat()
+            db.execute(
+                "INSERT OR IGNORE INTO users (id, email, name, avatar_url, provider, role, created_at, last_login) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (int(payload["sub"]), "guest@greetopia.local", "Guest User", "", "guest", "operator", now, now)
+            )
+            row = db.execute("SELECT * FROM users WHERE id = ?", (int(payload["sub"]),)).fetchone()
     if not row:
         return None
     user = dict(row)
@@ -178,6 +185,13 @@ def current_user(authorization: Optional[str] = Header(default=None)) -> dict:
     with db_session() as db:
         ensure_users_table(db)
         row = db.execute("SELECT * FROM users WHERE id = ?", (int(payload["sub"]),)).fetchone()
+        if not row and payload.get("email") == "guest@greetopia.local":
+            now = datetime.now(timezone.utc).isoformat()
+            db.execute(
+                "INSERT OR IGNORE INTO users (id, email, name, avatar_url, provider, role, created_at, last_login) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (int(payload["sub"]), "guest@greetopia.local", "Guest User", "", "guest", "operator", now, now)
+            )
+            row = db.execute("SELECT * FROM users WHERE id = ?", (int(payload["sub"]),)).fetchone()
     if not row:
         raise HTTPException(401, "User not found.")
     user = dict(row)

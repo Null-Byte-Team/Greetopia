@@ -2205,3 +2205,190 @@ footer > span:nth-child(2) {
 .ix-form { display: grid; gap: 10px; } .ix-form label { display: grid; gap: 4px; font-size: 0.9rem; }
 .ix-form input, .ix-form textarea, .ix-form select { padding: 8px; border: 1px solid var(--border-input); border-radius: 8px; background: var(--bg-input); color: var(--text-main); }
 .live-badge { font-size: 0.75rem; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border-pill); color: var(--text-pill); }
+
+/* ==========================================================================
+   Splash Screen Styles
+   ========================================================================== */
+.splash-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-app);
+  overflow: hidden;
+  font-family: var(--font-sans);
+  transition: opacity 0.45s ease-out, transform 0.45s ease-out, visibility 0.45s;
+}
+
+.splash-screen.splash-fading {
+  opacity: 0;
+  transform: scale(1.04);
+  pointer-events: none;
+}
+
+.splash-ambient {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(90px);
+  pointer-events: none;
+  animation: splash-float 8s ease-in-out infinite alternate;
+}
+
+.splash-ambient-1 {
+  width: 480px;
+  height: 480px;
+  background: radial-gradient(circle, rgba(34, 197, 94, 0.28), rgba(16, 185, 129, 0.05));
+  top: -100px;
+  right: -80px;
+}
+
+.splash-ambient-2 {
+  width: 420px;
+  height: 420px;
+  background: radial-gradient(circle, rgba(16, 185, 129, 0.22), rgba(5, 150, 105, 0.04));
+  bottom: -80px;
+  left: -80px;
+  animation-delay: -4s;
+}
+
+[data-theme="dark"] .splash-ambient-1 {
+  background: radial-gradient(circle, rgba(34, 197, 94, 0.2), rgba(16, 185, 129, 0.02));
+}
+
+[data-theme="dark"] .splash-ambient-2 {
+  background: radial-gradient(circle, rgba(16, 185, 129, 0.16), rgba(5, 150, 105, 0.02));
+}
+
+@keyframes splash-float {
+  0% { transform: translateY(0) scale(1); }
+  100% { transform: translateY(30px) scale(1.1); }
+}
+
+.splash-content {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 32px 24px;
+  max-width: 440px;
+  animation: splash-appear 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes splash-appear {
+  0% { opacity: 0; transform: translateY(18px) scale(0.96); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.splash-badge-wrap {
+  position: relative;
+  margin-bottom: 24px;
+}
+
+.splash-badge-halo {
+  position: absolute;
+  inset: -12px;
+  border-radius: 32px;
+  background: radial-gradient(circle, rgba(34, 197, 94, 0.35), transparent 70%);
+  animation: splash-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes splash-pulse {
+  0%, 100% { transform: scale(0.92); opacity: 0.5; }
+  50% { transform: scale(1.15); opacity: 0.9; }
+}
+
+.splash-badge {
+  position: relative;
+  width: 88px;
+  height: 88px;
+  border-radius: 26px;
+  background: linear-gradient(135deg, #22c55e, #10b981, #059669);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 12px 36px rgba(34, 197, 94, 0.38), 0 2px 8px rgba(0, 0, 0, 0.08);
+  animation: splash-leaf-wiggle 3s ease-in-out infinite;
+}
+
+@keyframes splash-leaf-wiggle {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-4deg); }
+  75% { transform: rotate(4deg); }
+}
+
+.splash-icon {
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.2));
+}
+
+.splash-badge-sparkle {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  color: #facc15;
+  filter: drop-shadow(0 2px 8px rgba(250, 204, 21, 0.6));
+  animation: splash-sparkle 1.8s ease-in-out infinite alternate;
+}
+
+@keyframes splash-sparkle {
+  0% { transform: scale(0.8) rotate(0deg); opacity: 0.7; }
+  100% { transform: scale(1.15) rotate(25deg); opacity: 1; }
+}
+
+.splash-title {
+  font: 800 34px var(--font-heading);
+  letter-spacing: -1px;
+  color: var(--text-heading);
+  margin: 0 0 8px;
+  line-height: 1.1;
+  background: linear-gradient(135deg, var(--text-heading), #22c55e);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.splash-sub {
+  font-size: 13.5px;
+  color: var(--text-muted);
+  letter-spacing: 0.8px;
+  margin: 0 0 28px;
+  font-weight: 500;
+}
+
+.splash-progress-track {
+  width: 200px;
+  height: 5px;
+  background: var(--border-subtle);
+  border-radius: 999px;
+  overflow: hidden;
+  position: relative;
+  margin-bottom: 14px;
+}
+
+.splash-progress-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 45%;
+  background: linear-gradient(90deg, #22c55e, #10b981);
+  border-radius: 999px;
+  animation: splash-progress 1.5s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+}
+
+@keyframes splash-progress {
+  0% { left: -45%; width: 30%; }
+  50% { width: 60%; }
+  100% { left: 100%; width: 30%; }
+}
+
+.splash-status {
+  font-size: 12px;
+  color: var(--text-subtle);
+  font-weight: 500;
+  margin: 0;
+  min-height: 18px;
+}

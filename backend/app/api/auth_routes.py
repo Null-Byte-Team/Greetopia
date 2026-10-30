@@ -91,6 +91,28 @@ def signin(body: SignInRequest, request: Request):
     return AuthResponse(token=create_access_token(row["id"], row["email"], row["name"]), user=_public_user(row))
 
 
+@auth_router.post("/guest", response_model=AuthResponse)
+def guest_auth(request: Request):
+    rate_limit(f"guest:{client_ip(request)}", 60, 300)
+    now = _now()
+    with db_session() as db:
+        ensure_users_table(db)
+        row = db.execute("SELECT * FROM users WHERE email = 'guest@greetopia.local'").fetchone()
+        if not row:
+            role = "operator"
+            cur = db.execute(
+                "INSERT INTO users (email, name, avatar_url, provider, role, created_at, last_login) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                ("guest@greetopia.local", "Guest User", "", "guest", role, now, now)
+            )
+            row = db.execute("SELECT * FROM users WHERE id = ?", (cur.lastrowid,)).fetchone()
+        row = dict(row)
+        if row.get("role") not in ("operator", "admin"):
+            db.execute("UPDATE users SET role='operator' WHERE id=?", (row["id"],))
+            row["role"] = "operator"
+    token = create_access_token(row["id"], row["email"], row["name"])
+    return AuthResponse(token=token, user=_public_user(row))
+
+
 @auth_router.post("/google", response_model=AuthResponse)
 def google_auth(body: GoogleAuthRequest, request: Request):
     rate_limit(f"google:{client_ip(request)}", 20, 300)
