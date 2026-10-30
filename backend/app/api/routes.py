@@ -34,6 +34,13 @@ router = APIRouter(dependencies=[Depends(current_user)])
 def get_plant_or_404(plant_id):
     with db_session() as db:
         row = db.execute('SELECT * FROM plants WHERE plant_id=?', (plant_id,)).fetchone()
+        if not row and plant_id in (settings.default_plant_id, 'plant01'):
+            now = datetime.now(timezone.utc).isoformat()
+            db.execute(
+                'INSERT OR IGNORE INTO plants (plant_id, name, species, growth_stage, species_source, ideal_moisture_min, ideal_moisture_max, mode, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                (plant_id, 'My Plant', 'Tomato', 'Vegetative', 'default', 30.0, 65.0, 'auto', now)
+            )
+            row = db.execute('SELECT * FROM plants WHERE plant_id=?', (plant_id,)).fetchone()
     if not row:
         raise HTTPException(404, 'Plant not found')
     return dict(row)
@@ -140,6 +147,13 @@ def _analyze_in_background(plant_id: str, capture_id: str):
 def list_plants():
     with db_session() as db:
         rows = db.execute('SELECT * FROM plants ORDER BY created_at').fetchall()
+        if not rows:
+            now = datetime.now(timezone.utc).isoformat()
+            db.execute(
+                'INSERT OR IGNORE INTO plants (plant_id, name, species, growth_stage, species_source, ideal_moisture_min, ideal_moisture_max, mode, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                (settings.default_plant_id, 'My Plant', 'Tomato', 'Vegetative', 'default', 30.0, 65.0, 'auto', now)
+            )
+            rows = db.execute('SELECT * FROM plants ORDER BY created_at').fetchall()
     return [dict(r) for r in rows]
 
 

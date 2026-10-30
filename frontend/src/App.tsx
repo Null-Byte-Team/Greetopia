@@ -149,6 +149,10 @@ function App() {
       const [p, hz] = await Promise.all([api.plants(), api.health()]);
       setPlants(p);
       setSystemHealth(hz);
+      if (!p || p.length === 0) {
+        setLoading(false);
+        return;
+      }
       const chosen = p.some(x => x.plant_id === plantId) ? plantId : (p[0]?.plant_id || 'plant01');
       if (chosen !== plantId) setPlantId(chosen);
       const [o, h, d, di] = await Promise.all([

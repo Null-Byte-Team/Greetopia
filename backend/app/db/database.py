@@ -195,20 +195,47 @@ def ensure_db():
 
 def connect():
     ensure_db()
+    now_iso = datetime.now(timezone.utc).isoformat()
     try:
         conn = sqlite3.connect(settings.database_path, timeout=30, check_same_thread=False)
         conn.row_factory = sqlite3.Row
         conn.execute('PRAGMA foreign_keys = ON')
         conn.execute('PRAGMA busy_timeout = 30000')
+        conn.execute(
+            'INSERT OR IGNORE INTO plants (plant_id, name, species, growth_stage, species_source, ideal_moisture_min, ideal_moisture_max, mode, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            (settings.default_plant_id, 'My Plant', 'Tomato', 'Vegetative', 'default', 30.0, 65.0, 'auto', now_iso)
+        )
+        conn.commit()
         return conn
     except Exception:
-        conn = sqlite3.connect(':memory:', check_same_thread=False)
+        pass
+
+    try:
+        conn = sqlite3.connect('/tmp/smart_irrigation.db', timeout=30, check_same_thread=False)
         conn.row_factory = sqlite3.Row
-        try:
-            conn.executescript(SCHEMA)
-        except Exception:
-            pass
+        conn.execute('PRAGMA foreign_keys = ON')
+        conn.executescript(SCHEMA)
+        conn.execute(
+            'INSERT OR IGNORE INTO plants (plant_id, name, species, growth_stage, species_source, ideal_moisture_min, ideal_moisture_max, mode, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            (settings.default_plant_id, 'My Plant', 'Tomato', 'Vegetative', 'default', 30.0, 65.0, 'auto', now_iso)
+        )
+        conn.commit()
         return conn
+    except Exception:
+        pass
+
+    conn = sqlite3.connect('file:greetopia_mem?mode=memory&cache=shared', uri=True, check_same_thread=False)
+    conn.row_factory = sqlite3.Row
+    try:
+        conn.executescript(SCHEMA)
+        conn.execute(
+            'INSERT OR IGNORE INTO plants (plant_id, name, species, growth_stage, species_source, ideal_moisture_min, ideal_moisture_max, mode, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            (settings.default_plant_id, 'My Plant', 'Tomato', 'Vegetative', 'default', 30.0, 65.0, 'auto', now_iso)
+        )
+        conn.commit()
+    except Exception:
+        pass
+    return conn
 
 @contextmanager
 def db_session():
