@@ -71,8 +71,31 @@ export default function SignInPage({
     [t, onAuth],
   );
 
+  // Track whether google.accounts.id.initialize() has already been called once.
+  // The GSI library only allows one initialize() per page load; calling it again
+  // just produces the "[GSI_LOGGER]: google.accounts.id.initialize() is called
+  // multiple times" warning.
+  const gsiInitialized = useRef(false);
+
+  // Keep a stable ref to the latest callback so we never need to re-initialize
+  // when handleGoogleCredential identity changes due to re-renders.
+  const callbackRef = useRef(handleGoogleCredential);
+  useEffect(() => { callbackRef.current = handleGoogleCredential; }, [handleGoogleCredential]);
+
+  const renderGoogleButton = useCallback(() => {
+    if (!(window as any).google?.accounts?.id || !googleBtnRef.current) return;
+    (window as any).google.accounts.id.renderButton(googleBtnRef.current, {
+      theme: theme === 'dark' ? 'filled_black' : 'outline',
+      size: 'large',
+      width: googleBtnRef.current.offsetWidth || 320,
+      locale: lang === 'ar' ? 'ar' : 'en',
+      text: 'continue_with',
+      shape: 'rectangular',
+    });
+  }, [theme, lang]);
+
   useEffect(() => {
-    // Inject Google Identity Services script once
+    // Inject Google Identity Services script exactly once per page
     const scriptId = 'google-gsi';
     if (!document.getElementById(scriptId)) {
       const s = document.createElement('script');
@@ -83,47 +106,33 @@ export default function SignInPage({
       document.head.appendChild(s);
     }
 
-    // Poll until window.google is ready, then initialise
+    // Poll until window.google is ready, then initialize (only once) + render button
     let attempts = 0;
     const interval = setInterval(() => {
       if ((window as any).google?.accounts?.id) {
         clearInterval(interval);
-        (window as any).google.accounts.id.initialize({
-          client_id: GOOGLE_CLIENT_ID,
-          callback: handleGoogleCredential,
-          auto_select: false,
-          ux_mode: 'popup',
-        });
-        if (googleBtnRef.current) {
-          (window as any).google.accounts.id.renderButton(googleBtnRef.current, {
-            theme: theme === 'dark' ? 'filled_black' : 'outline',
-            size: 'large',
-            width: googleBtnRef.current.offsetWidth || 320,
-            locale: lang === 'ar' ? 'ar' : 'en',
-            text: 'continue_with',
-            shape: 'rectangular',
+        if (!gsiInitialized.current) {
+          gsiInitialized.current = true;
+          (window as any).google.accounts.id.initialize({
+            client_id: GOOGLE_CLIENT_ID,
+            // Stable wrapper → always calls the latest callback without re-initializing
+            callback: (response: any) => callbackRef.current(response),
+            auto_select: false,
+            ux_mode: 'popup',
           });
         }
+        renderGoogleButton();
       }
       if (++attempts > 40) clearInterval(interval); // give up after 4 s
     }, 100);
 
     return () => clearInterval(interval);
-  }, [theme, lang, handleGoogleCredential]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps -- intentionally run once
 
-  // Re-render Google button when theme/lang changes
+  // Re-render Google button (no re-initialize) when theme/lang changes
   useEffect(() => {
-    if ((window as any).google?.accounts?.id && googleBtnRef.current) {
-      (window as any).google.accounts.id.renderButton(googleBtnRef.current, {
-        theme: theme === 'dark' ? 'filled_black' : 'outline',
-        size: 'large',
-        width: googleBtnRef.current.offsetWidth || 320,
-        locale: lang === 'ar' ? 'ar' : 'en',
-        text: 'continue_with',
-        shape: 'rectangular',
-      });
-    }
-  }, [theme, lang]);
+    renderGoogleButton();
+  }, [renderGoogleButton]);
 
   // ── Email / Password Submit ────────────────────────────────────────────────
   const handleSubmit = async (e: React.FormEvent) => {
