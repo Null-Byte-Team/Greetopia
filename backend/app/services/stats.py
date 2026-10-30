@@ -4,8 +4,6 @@ from __future__ import annotations
 import itertools
 import math
 
-import numpy as np
-
 EXACT_MAX_N = 16
 
 
@@ -51,6 +49,7 @@ def mann_whitney(x: list[float], y: list[float], min_n: int = 3) -> dict:
         out.update(p_value=round(count / total, 4), method="exact permutation")
         return out
     n = n1 + n2
+    import numpy as np  # lazy – only loaded when n is large enough for normal approx
     _, counts = np.unique(ranks, return_counts=True)
     tie = float(np.sum(counts ** 3 - counts))
     var = n1 * n2 / 12 * ((n + 1) - tie / (n * (n - 1)))
@@ -66,6 +65,7 @@ def bootstrap_median_diff(x: list[float], y: list[float], seed: int, n_boot: int
     """95% percentile bootstrap CI for median(x) - median(y). With tiny samples the interval is honestly wide."""
     if not x or not y:
         return {"available": False}
+    import numpy as np  # lazy – only loaded when this function is called
     rng = np.random.default_rng(seed)
     xs, ys = np.array(x, float), np.array(y, float)
     diffs = [float(np.median(rng.choice(xs, len(xs))) - np.median(rng.choice(ys, len(ys)))) for _ in range(n_boot)]
