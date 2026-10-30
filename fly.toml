@@ -8,11 +8,10 @@ primary_region = "ams"          # Amsterdam — change to the region nearest you
 kill_signal = "SIGINT"
 kill_timeout = "10s"
 
-# Build context is set to backend/ so Dockerfile COPY instructions work correctly
-# when fly deploy is run from the repo root.
+# Dockerfile.flyio lives at the repo root and uses backend/-prefixed COPY paths
+# so the build context (repo root) contains everything needed.
 [build]
-  dockerfile = "backend/Dockerfile"
-  context    = "backend"
+  dockerfile = "Dockerfile.flyio"
 
 # Persistent volume mounted at /app/storage so the SQLite DB and photos
 # survive deploys and restarts.  Create it once with:
