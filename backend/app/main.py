@@ -67,18 +67,22 @@ async def maintenance_loop():
 async def lifespan(app: FastAPI):
     validate_settings()
     if is_serverless:
-        log.error('Serverless runtime detected: MQTT, the scheduler and SQLite persistence will NOT work. Deploy as a long-running service.')
+        log.warning('Serverless runtime detected: running in lightweight API-only mode without MQTT or background loops.')
     init_db()
     realtime.bind_loop(asyncio.get_running_loop())
-    start_mqtt()
-    tasks = [asyncio.create_task(automatic_decision_loop()), asyncio.create_task(maintenance_loop())]
+    tasks = []
+    if not is_serverless:
+        start_mqtt()
+        tasks = [asyncio.create_task(automatic_decision_loop()), asyncio.create_task(maintenance_loop())]
     try:
         yield
     finally:
         for t in tasks:
             t.cancel()
-        await asyncio.gather(*tasks, return_exceptions=True)
-        stop_mqtt()
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+        if not is_serverless:
+            stop_mqtt()
 
 
 app = FastAPI(title=settings.app_name, version='1.0.0', description='Greetopia smart irrigation API.', lifespan=lifespan)

@@ -152,12 +152,18 @@ def _migrate(conn):
 
 def init_db():
     global _initialized
-    Path(settings.database_path).parent.mkdir(parents=True, exist_ok=True)
+    try:
+        Path(settings.database_path).parent.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        pass
     conn = sqlite3.connect(settings.database_path, timeout=30, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute('PRAGMA foreign_keys = ON')
     try:
-        conn.execute('PRAGMA journal_mode = WAL')
+        try:
+            conn.execute('PRAGMA journal_mode = WAL')
+        except Exception:
+            pass
         conn.executescript(SCHEMA)
         plant_columns = {row['name'] for row in conn.execute('PRAGMA table_info(plants)').fetchall()}
         if 'species_source' not in plant_columns:
