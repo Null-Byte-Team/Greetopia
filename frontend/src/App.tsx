@@ -203,10 +203,12 @@ function App() {
   }, [plantId]);
 
   useEffect(() => {
+    // Do not poll when no user is authenticated – avoids flooding 401s on the sign-in screen
+    if (!user) return;
     load();
     const timer = setInterval(load, live ? 60000 : 15000); // polling is only a safety net while the WebSocket is connected
     return () => clearInterval(timer);
-  }, [load, live]);
+  }, [load, live, user]);
 
   useLive(
     !!user,
