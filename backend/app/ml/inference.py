@@ -4,6 +4,8 @@ from __future__ import annotations
 import json
 from datetime import datetime, timedelta, timezone
 
+import pandas as pd
+
 from app.db.database import db_session
 from app.ml import registry
 from app.ml.dataset import FEATURE_VERSION, FEATURES, build_features, load_bins, watering_times
@@ -17,7 +19,6 @@ def _unavailable(reason: str) -> dict:
 
 
 def predict(plant_id: str, persist: bool = True) -> dict:
-    import pandas as pd  # lazy – heavy dep; only loaded when a prediction is requested
     loaded = registry.load_approved(plant_id)
     if not loaded:
         return _unavailable("no approved model with a valid checksum exists for this plant (the ML predictor is experimental until one is trained on real data and approved)")

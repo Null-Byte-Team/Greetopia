@@ -9,6 +9,8 @@ from __future__ import annotations
 import statistics
 from datetime import datetime, timedelta, timezone
 
+import numpy as np
+
 from app.core.config import settings
 from app.db.database import db_session
 from app.services import device_state
@@ -82,7 +84,6 @@ def kpis_from_points(points, low: float, high: float, max_gap_s: float = MAX_GAP
             sat += dt
     if covered < 3600:
         return _unavailable("less than 1 hour of continuous coverage", covered_hours=round(covered / 3600, 2))
-    import numpy as np  # lazy
     values = [v for _, v in points]
     q1, q3 = np.percentile(values, [25, 75])
     return {"available": True, "label": "derived", "covered_hours": round(covered / 3600, 2), "samples": len(points),
@@ -167,7 +168,6 @@ def microclimate(plant_id: str, days: int = 7) -> dict:
     surface = series(plant_id, "soil_surface", since)
     if len(temp) < 100 or len(hum) < 100:
         return _unavailable("needs >= 100 temperature and humidity samples", temperature_samples=len(temp), humidity_samples=len(hum))
-    import numpy as np  # lazy
     t_times = [t for t, _ in temp]
     import bisect
     covered = heat = vpd_low = vpd_high = fungal = 0.0
@@ -229,7 +229,6 @@ def probe_health(points, hours: float, other_ranges: list[float]) -> dict:
 def connectivity(points) -> dict:
     if len(points) < 20:
         return _unavailable("fewer than 20 samples")
-    import numpy as np  # lazy
     gaps = [(b - a).total_seconds() for (a, _), (b, _) in zip(points, points[1:])]
     p95 = float(np.percentile(gaps, 95))
     long_gaps = sum(g > MAX_GAP_S for g in gaps)
@@ -294,7 +293,6 @@ def fit_demand(pairs: list[tuple[float, float, float]]) -> dict:
     """pairs = (vpd, delta_root_per_hour, time_index). Chronological 70/30 split; hidden unless better than baselines."""
     if len(pairs) < 48:
         return _unavailable(f"needs >= 48 dry-down hours (found {len(pairs)})")
-    import numpy as np  # lazy
     pairs = sorted(pairs, key=lambda p: p[2])
     cut = int(len(pairs) * 0.7)
     tr, te = pairs[:cut], pairs[cut:]
@@ -326,7 +324,6 @@ def demand_model(plant_id: str, days: int = 14) -> dict:
         buckets: dict[datetime, list[float]] = {}
         for t, v in pts:
             buckets.setdefault(t.replace(minute=0, second=0, microsecond=0), []).append(v)
-        import numpy as np  # lazy
         return {h: float(np.mean(v)) for h, v in buckets.items() if len(v) >= 120}  # >= 20 min of a 10 s stream
 
     r_h, t_h, h_h = hourly(root), hourly(temp), hourly(hum)
@@ -356,7 +353,7 @@ def demand_model(plant_id: str, days: int = 14) -> dict:
     if not recent_vpd:
         out["forecast"] = _unavailable("no recent temperature/humidity data")
         return out
-    slope = fit["_a"] + fit["_b"] * float(__import__("numpy").mean(recent_vpd))
+    slope = fit["_a"] + fit["_b"] * float(np.mean(recent_vpd))
     if slope >= -0.01:
         out["forecast"] = _unavailable("predicted dry-down rate is ~0 under current conditions")
         return out

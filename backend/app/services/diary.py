@@ -1,3 +1,4 @@
+from __future__ import annotations
 from datetime import datetime, timezone, date
 from app.db.database import db_session
 from app.services.telemetry import latest_readings

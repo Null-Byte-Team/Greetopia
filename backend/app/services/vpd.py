@@ -1,3 +1,4 @@
+from __future__ import annotations
 import math
 
 def calculate_vpd(temp_c: float | None, humidity_pct: float | None) -> float | None:

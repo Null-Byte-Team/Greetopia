@@ -10,6 +10,7 @@ import io
 import logging
 from datetime import datetime, timedelta, timezone
 
+import numpy as np
 from PIL import Image
 
 from app.db.database import db_session
@@ -19,7 +20,6 @@ EXG_THRESHOLD = 0.10
 
 
 def compute(jpeg: bytes) -> dict:
-    import numpy as np  # lazy – only when a photo is processed
     with Image.open(io.BytesIO(jpeg)) as img:
         img = img.convert("RGB")
         img.thumbnail((320, 320))

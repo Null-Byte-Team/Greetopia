@@ -1,4 +1,5 @@
 """python -m app.ml.cli train --plants plant01 [--horizon 60] | list | approve <version> --by you@example.com"""
+from __future__ import annotations
 import argparse
 import json
 
