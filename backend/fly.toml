@@ -1,0 +1,61 @@
+# fly.toml — Greetopia backend (FastAPI / Uvicorn)
+# Deploy with: fly deploy  (run from the backend/ directory)
+# First-time:  fly launch --no-deploy  (then fly deploy)
+
+app = "greetopia-backend"
+primary_region = "ams"          # Amsterdam — change to the region nearest your users
+kill_signal = "SIGINT"
+kill_timeout = "10s"
+
+[build]
+  dockerfile = "Dockerfile"
+
+# Persistent volume mounted at /app/storage so the SQLite DB and photos
+# survive deploys and restarts.  Create it once with:
+#   fly volumes create greetopia_data --size 1 --region ams
+[mounts]
+  source      = "greetopia_data"
+  destination = "/app/storage"
+
+[env]
+  PORT            = "5000"
+  DATABASE_PATH   = "/app/storage/smart_irrigation.db"
+  PHOTO_DIR       = "/app/storage/photos"
+  # Non-secret runtime tuning — secrets go in `fly secrets set`
+  MQTT_ENABLED    = "false"
+  LOG_LEVEL       = "info"
+
+# HTTP service — Fly's edge terminates TLS and forwards to port 5000 inside.
+[[services]]
+  protocol    = "tcp"
+  internal_port = 5000
+
+  [[services.ports]]
+    port     = 80
+    handlers = ["http"]
+    force_https = true        # redirect HTTP → HTTPS automatically
+
+  [[services.ports]]
+    port     = 443
+    handlers = ["tls", "http"]
+
+  [services.concurrency]
+    type       = "requests"
+    hard_limit = 50
+    soft_limit = 35
+
+  # Liveness check — Fly restarts the VM if /health/ready stops responding.
+  [[services.http_checks]]
+    interval       = "30s"
+    timeout        = "8s"
+    grace_period   = "25s"
+    method         = "GET"
+    path           = "/api/v1/health"
+    protocol       = "http"
+    restart_limit  = 3
+
+# Single shared-CPU-1x instance is plenty for a demo/personal deployment.
+# Scale up with `fly scale count 2` if you need zero-downtime deploys.
+[[vm]]
+  size   = "shared-cpu-1x"
+  memory = "512mb"
